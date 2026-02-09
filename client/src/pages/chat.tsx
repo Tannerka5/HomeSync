@@ -7,7 +7,10 @@ import {
   Send, 
   Paperclip,
   Smile,
-  Check
+  Check,
+  ChevronLeft,
+  Pin,
+  Plus
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,136 +21,208 @@ import { Separator } from "@/components/ui/separator";
 import { MOCK_CHATS } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
+type FilterType = "All" | "Unread" | "Pinned" | "Professionals";
+
 export default function ChatPage() {
   const [selectedChatId, setSelectedChatId] = useState<number | null>(1);
   const [messageInput, setMessageInput] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("All");
+
+  const filteredChats = MOCK_CHATS.filter(chat => {
+    if (activeFilter === "Unread") return chat.unread;
+    if (activeFilter === "Pinned") return chat.pinned;
+    if (activeFilter === "Professionals") return chat.role !== "Buyer";
+    return true;
+  });
 
   const selectedChat = MOCK_CHATS.find(c => c.id === selectedChatId) || MOCK_CHATS[0];
 
+  const filters: FilterType[] = ["All", "Unread", "Pinned", "Professionals"];
+
   return (
-    <div className="h-[calc(100vh-64px)] flex overflow-hidden">
+    <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-background">
       {/* Chat List Sidebar */}
       <div className={cn(
-        "w-full md:w-80 lg:w-96 border-r flex flex-col bg-background transition-all duration-300",
+        "w-full md:w-80 lg:w-96 border-r flex flex-col bg-background transition-all duration-300 relative z-20",
         selectedChatId ? "hidden md:flex" : "flex"
       )}>
-        <div className="p-4 border-b space-y-4">
-          <h1 className="text-2xl font-bold">Messages</h1>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search conversations..." className="pl-9 bg-muted/50 border-none" />
+        <div className="p-5 space-y-5 border-b shadow-sm bg-background/95 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold font-heading">Messages</h1>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <Plus className="h-5 w-5" />
+            </Button>
           </div>
           
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <Badge variant="default" className="cursor-pointer">All</Badge>
-            <Badge variant="outline" className="cursor-pointer whitespace-nowrap">Unread</Badge>
-            <Badge variant="outline" className="cursor-pointer whitespace-nowrap">Professionals</Badge>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
+            <Input placeholder="Search conversations..." className="pl-9 bg-muted/50 border-none rounded-2xl h-11 focus-visible:ring-primary/20" />
+          </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+            {filters.map((filter) => (
+              <Button
+                key={filter}
+                variant={activeFilter === filter ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveFilter(filter)}
+                className={cn(
+                  "rounded-full h-8 px-4 text-xs font-bold uppercase tracking-wider transition-all",
+                  activeFilter === filter 
+                    ? "bg-primary text-white shadow-md shadow-primary/20" 
+                    : "border-border/50 text-muted-foreground hover:bg-primary/5 hover:text-primary hover:border-primary/20"
+                )}
+              >
+                {filter}
+                {filter === "Unread" && MOCK_CHATS.some(c => c.unread) && (
+                  <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </Button>
+            ))}
           </div>
         </div>
 
         <ScrollArea className="flex-1">
           <div className="flex flex-col">
-            {MOCK_CHATS.map((chat) => (
+            {filteredChats.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
                 className={cn(
-                  "flex items-start gap-3 p-4 text-left transition-colors hover:bg-muted/50 border-b border-border/40 last:border-0",
-                  selectedChatId === chat.id ? "bg-muted" : ""
+                  "flex items-start gap-4 p-5 text-left transition-all hover:bg-muted/30 border-b border-border/30 last:border-0 group relative overflow-hidden",
+                  selectedChatId === chat.id ? "bg-primary/5 after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-12 after:w-1 after:bg-primary after:rounded-r-full" : ""
                 )}
               >
-                <div className="relative">
-                  <Avatar className="h-12 w-12 border border-border">
+                <div className="relative shrink-0">
+                  <Avatar className="h-14 w-14 border-2 border-background shadow-sm ring-1 ring-border/50">
                     <AvatarImage src={chat.avatar} />
-                    <AvatarFallback>{chat.name[0]}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/5 text-primary font-bold">{chat.name[0]}</AvatarFallback>
                   </Avatar>
                   {chat.unread && (
-                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-primary border-2 border-background" />
+                    <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-background shadow-sm" />
+                  )}
+                  {chat.pinned && (
+                    <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 shadow-sm border border-border/50">
+                      <Pin className="h-2.5 w-2.5 text-primary fill-primary" />
+                    </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="flex-1 min-w-0 overflow-hidden pt-0.5">
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className={cn("font-medium truncate", chat.unread ? "text-foreground" : "text-foreground/90")}>
+                    <span className={cn(
+                      "font-bold truncate text-sm transition-colors",
+                      chat.unread ? "text-foreground" : "text-foreground/80 group-hover:text-primary"
+                    )}>
                       {chat.name}
                     </span>
-                    <span className="text-xs text-muted-foreground ml-2 shrink-0">{chat.time}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground/60 ml-2 shrink-0 uppercase tracking-tighter">
+                      {chat.time}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                     <Badge variant="secondary" className="text-[10px] h-4 px-1">{chat.role}</Badge>
+                  <div className="flex items-center gap-2 mb-2">
+                     <Badge variant="secondary" className="text-[9px] h-4 px-1.5 rounded-sm font-black uppercase tracking-widest bg-muted/60 text-muted-foreground/80">
+                       {chat.role}
+                     </Badge>
                   </div>
-                  <p className={cn("text-sm truncate", chat.unread ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                  <p className={cn(
+                    "text-xs truncate leading-relaxed",
+                    chat.unread ? "font-bold text-foreground" : "text-muted-foreground/70"
+                  )}>
                     {chat.lastMessage}
                   </p>
                 </div>
               </button>
             ))}
+            {filteredChats.length === 0 && (
+              <div className="p-10 text-center space-y-3">
+                <div className="bg-muted/30 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <Search className="h-6 w-6 text-muted-foreground opacity-20" />
+                </div>
+                <p className="text-sm font-bold text-muted-foreground/80">No {activeFilter.toLowerCase()} chats found</p>
+                <p className="text-xs text-muted-foreground/50">Try selecting a different filter</p>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>
 
       {/* Chat Window */}
       <div className={cn(
-        "flex-1 flex flex-col bg-muted/30 w-full transition-all duration-300",
+        "flex-1 flex flex-col bg-muted/20 w-full transition-all duration-500 relative z-10",
         !selectedChatId ? "hidden md:flex" : "flex"
       )}>
         {/* Chat Header */}
-        <div className="h-16 border-b bg-background flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="md:hidden -ml-2" onClick={() => setSelectedChatId(null)}>
-              <Search className="h-5 w-5 rotate-90" /> {/* Back icon placeholder */}
+        <div className="h-20 border-b bg-background/95 backdrop-blur flex items-center justify-between px-6 shrink-0 shadow-sm relative z-10">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="md:hidden -ml-2 rounded-full" onClick={() => setSelectedChatId(null)}>
+              <ChevronLeft className="h-6 w-6" />
             </Button>
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={selectedChat.avatar} />
-              <AvatarFallback>{selectedChat.name[0]}</AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-11 w-11 border-2 border-background shadow-sm ring-1 ring-border/50">
+                <AvatarImage src={selectedChat.avatar} />
+                <AvatarFallback className="font-bold">{selectedChat.name[0]}</AvatarFallback>
+              </Avatar>
+              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+            </div>
             <div>
-              <h3 className="font-semibold text-sm">{selectedChat.name}</h3>
-              <p className="text-xs text-muted-foreground">{selectedChat.role}</p>
+              <h3 className="font-bold text-base leading-none mb-1">{selectedChat.name}</h3>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Now &bull; {selectedChat.role}</p>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <Phone className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <Video className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Separator orientation="vertical" className="h-6 mx-1 bg-border/40" />
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground rounded-full">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </div>
         </div>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-6 max-w-3xl mx-auto">
+        <ScrollArea className="flex-1 px-6 pt-6">
+          <div className="space-y-8 max-w-4xl mx-auto pb-10">
              <div className="flex justify-center">
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">Today</span>
+                <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-[0.2em] bg-muted/40 px-4 py-1.5 rounded-full border border-border/30 backdrop-blur-sm">Monday, October 12</span>
              </div>
 
              {/* Received Message */}
-             <div className="flex gap-3">
-               <Avatar className="h-8 w-8 mt-1">
+             <div className="flex gap-4 group">
+               <Avatar className="h-9 w-9 mt-1 border border-border/50 shadow-sm shrink-0">
                  <AvatarImage src={selectedChat.avatar} />
                  <AvatarFallback>{selectedChat.name[0]}</AvatarFallback>
                </Avatar>
-               <div className="flex flex-col gap-1 max-w-[80%]">
-                 <div className="bg-white border border-border/50 rounded-2xl rounded-tl-none p-3 shadow-sm">
-                   <p className="text-sm">{selectedChat.lastMessage}</p>
+               <div className="flex flex-col gap-2 max-w-[75%]">
+                 <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
+                   <p className="text-sm leading-relaxed text-foreground/90">{selectedChat.lastMessage}</p>
                  </div>
-                 <span className="text-xs text-muted-foreground ml-1">{selectedChat.time}</span>
+                 <div className="flex items-center gap-2 ml-1">
+                   <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">{selectedChat.time}</span>
+                   <Badge variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity p-0 h-auto text-[9px] hover:text-primary">Reply</Badge>
+                 </div>
                </div>
              </div>
 
              {/* Sent Message (Mock) */}
-             <div className="flex gap-3 flex-row-reverse">
-               <div className="flex flex-col gap-1 items-end max-w-[80%]">
-                 <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-none p-3 shadow-md">
-                   <p className="text-sm">That sounds great! I'll be there.</p>
+             <div className="flex gap-4 flex-row-reverse group">
+               <div className="flex flex-col gap-2 items-end max-w-[75%]">
+                 <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20">
+                   <p className="text-sm leading-relaxed font-medium">I've reviewed the documents you sent over. Everything looks perfect, looking forward to the next steps!</p>
                  </div>
-                 <div className="flex items-center gap-1 text-xs text-muted-foreground mr-1">
-                   <span>10:32 AM</span>
-                   <Check className="h-3 w-3" />
+                 <div className="flex items-center gap-2 mr-1">
+                   <Badge variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity p-0 h-auto text-[9px] hover:text-primary">Edit</Badge>
+                   <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">10:45 AM</span>
+                   <div className="flex -space-x-1">
+                     <Check className="h-2.5 w-2.5 text-primary" />
+                     <Check className="h-2.5 w-2.5 text-primary" />
+                   </div>
                  </div>
                </div>
              </div>
@@ -155,27 +230,36 @@ export default function ChatPage() {
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-4 bg-background border-t">
-          <div className="max-w-3xl mx-auto flex items-end gap-2 bg-muted/50 p-1.5 rounded-3xl border focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-background shrink-0">
-               <Paperclip className="h-5 w-5" />
-             </Button>
-             <Input 
-               className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[40px] py-2.5 px-2" 
-               placeholder="Type a message..." 
-               value={messageInput}
-               onChange={(e) => setMessageInput(e.target.value)}
-             />
-             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-background shrink-0">
-               <Smile className="h-5 w-5" />
-             </Button>
-             <Button 
-               size="icon" 
-               className="h-9 w-9 rounded-full shrink-0" 
-               disabled={!messageInput}
-             >
-               <Send className="h-4 w-4" />
-             </Button>
+        <div className="p-6 bg-background/80 backdrop-blur-xl border-t shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] relative z-10">
+          <div className="max-w-4xl mx-auto flex items-end gap-3">
+             <div className="flex items-center gap-1 shrink-0">
+               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
+                 <Paperclip className="h-5 w-5" />
+               </Button>
+               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
+                 <Smile className="h-5 w-5" />
+               </Button>
+             </div>
+             
+             <div className="flex-1 bg-muted/40 rounded-[28px] border border-border/50 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all flex items-center pr-1.5 overflow-hidden">
+               <Input 
+                 className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/50 placeholder:font-medium" 
+                 placeholder={`Message ${selectedChat.name.split(' ')[0]}...`}
+                 value={messageInput}
+                 onChange={(e) => setMessageInput(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && messageInput && setMessageInput("")}
+               />
+               <Button 
+                 size="icon" 
+                 className={cn(
+                  "h-10 w-10 rounded-full shrink-0 transition-all duration-300",
+                  messageInput ? "bg-primary text-white scale-100 opacity-100 shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground scale-90 opacity-0 pointer-events-none"
+                 )}
+                 onClick={() => setMessageInput("")}
+               >
+                 <Send className="h-4 w-4" />
+               </Button>
+             </div>
           </div>
         </div>
       </div>
