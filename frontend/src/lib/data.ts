@@ -157,9 +157,25 @@ export const MOCK_BOARD = {
     { id: "doc-3", title: "Property Disclosure.pdf", type: "pdf", date: "Oct 12" }
   ],
   visionBoard: [
-    { id: "vision-1", image: "https://images.unsplash.com/photo-1556911223-e153e9917367?auto=format&fit=crop&w=400&q=80", title: "Modern Kitchen" },
-    { id: "vision-2", image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=400&q=80", title: "Cozy Living Room" },
-    { id: "vision-3", image: "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=400&q=80", title: "Minimalist Entryway" },
-    { id: "vision-4", image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80", title: "Luxury Bathroom" }
-  ]
+  { 
+    id: "vision-1", 
+    image: "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=400&q=80", 
+    title: "Modern Kitchen" 
+  },
+  { 
+    id: "vision-2", 
+    image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=400&q=80", 
+    title: "Cozy Living Room" 
+  },
+  { 
+    id: "vision-3", 
+    image: "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?auto=format&fit=crop&w=400&q=80", 
+    title: "Minimalist Entryway" 
+  },
+  { 
+    id: "vision-4", 
+    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80", 
+    title: "Luxury Bathroom" 
+  }
+]
 };
