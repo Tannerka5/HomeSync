@@ -25,15 +25,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      {/* Header */}
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <img src="/logo.png" alt="HomeSync" className="h-8 w-auto object-contain" />
-            <span className="font-heading font-bold text-xl text-primary tracking-tight hidden sm:block">
-              HomeSync
-            </span>
-          </Link>
+    {/* Header */}
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+      <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+        <img src="/logo.png" alt="HomeSync" className="h-10 md:h-12 w-auto object-contain" />
+        <span className="font-heading font-bold text-2xl text-primary tracking-tight hidden sm:block">
+          HomeSync
+        </span>
+      </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-6">
