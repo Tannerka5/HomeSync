@@ -14,34 +14,50 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-});
+const signupSchema = z
+  .object({
+    email: z.string().email("Please enter a valid email"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+    userType: z.enum(["buyer", "realtor", "collaborator"], {
+      required_error: "Please select a role",
+    }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type SignupForm = z.infer<typeof signupSchema>;
 
-export default function LoginPage() {
-  const { login } = useAuth();
+export default function SignupPage() {
+  const { signup } = useAuth();
   const [, navigate] = useLocation();
   const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
+  } = useForm<SignupForm>({ resolver: zodResolver(signupSchema) });
 
-  async function onSubmit(data: LoginForm) {
+  async function onSubmit(data: SignupForm) {
     setError(null);
     try {
-      await login(data.email, data.password);
+      await signup(data.email, data.password, data.userType);
       navigate("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed. Please try again.");
+      setError(e instanceof Error ? e.message : "Signup failed. Please try again.");
     }
   }
 
@@ -56,8 +72,8 @@ export default function LoginPage() {
 
       <Card className="w-full max-w-md shadow-xl border-border/50">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Enter your email to sign in to your account</CardDescription>
+          <CardTitle className="text-2xl">Create an account</CardTitle>
+          <CardDescription>Join HomeSync to collaborate on your home search</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
@@ -79,49 +95,45 @@ export default function LoginPage() {
               )}
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <a href="#" className="text-xs text-primary hover:underline">
-                  Forgot password?
-                </a>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" {...register("password")} />
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password.message}</p>
               )}
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="remember" />
-              <label
-                htmlFor="remember"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Remember me
-              </label>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input id="confirmPassword" type="password" {...register("confirmPassword")} />
+              {errors.confirmPassword && (
+                <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>I am a...</Label>
+              <Select onValueChange={(val) => setValue("userType", val as SignupForm["userType"])}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buyer">Buyer</SelectItem>
+                  <SelectItem value="realtor">Realtor</SelectItem>
+                  <SelectItem value="collaborator">Collaborator</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.userType && (
+                <p className="text-xs text-destructive">{errors.userType.message}</p>
+              )}
             </div>
             <Button className="w-full text-md py-5" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign in"}
+              {isSubmitting ? "Creating account..." : "Create account"}
             </Button>
           </CardContent>
         </form>
         <CardFooter className="flex flex-col gap-4">
-          <div className="relative w-full">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-            </div>
-          </div>
-          <Link href="/">
-            <Button variant="outline" className="w-full">
-              Continue as Guest
-            </Button>
-          </Link>
-          <p className="text-center text-xs text-muted-foreground mt-2">
-            Don't have an account?{" "}
-            <Link href="/signup" className="text-primary hover:underline font-medium">
-              Sign up
+          <p className="text-center text-xs text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/login" className="text-primary hover:underline font-medium">
+              Sign in
             </Link>
           </p>
         </CardFooter>
