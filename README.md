@@ -1,5 +1,7 @@
 # HomeSync (PERN Monorepo)
 
+**Live deployment:** `https://jonescg0.net`
+
 ## EARS Requirements
 ### Complete
 1. When a user enters valid credentials, the system shall sign the user in.
@@ -19,12 +21,49 @@
 8. If the system cannot complete a request, the system shall display an error message to the user.
 9. When a user performs a supported action, the system shall process the action end-to-end through the frontend, backend, and database.
 
-
 ## App Summary
 
-*Test Deploy
-
 HomeSync solves a common real estate pain point: buyers, agents, and collaborators often communicate across disconnected tools, which causes lost context and missed updates. The primary user is a home buyer who needs one place to view listings, collaborate with an agent, and track tasks. This application provides a single web experience where collaboration and communication happen directly in the buying workflow. The frontend offers pages for listings, chat, and a collaboration board, while the backend exposes API routes for data operations. PostgreSQL stores persistent records for users, listings, conversations, messages, and board items. A working vertical slice is implemented: toggling a task from the collaboration board updates PostgreSQL and immediately reflects in the UI. The repo is organized as a minimal beginner-friendly monorepo so frontend and backend can run together with one command.
+
+## Project Status (Sprint 1 of 3)
+
+We are currently in **Sprint 1 of 3**. Sprint 1 focuses on delivering a working vertical slice that runs end‑to‑end (User → Frontend → Backend → Database) with polished core pages and basic UX:
+
+- Home, login, and signup flows are implemented and visually aligned with the HomeSync brand.
+- Listings, Collaboration Board, and Chat pages are wired to backend APIs where needed.
+- One core interaction (toggling a task on the Collaboration Board) is fully implemented through the stack and persisted in PostgreSQL.
+
+### Sprint Plan (High Level)
+
+- **Sprint 1 – Vertical Slice & Core UX**
+
+  - Implement core pages (Home, Listings, Board, Chat, Auth shell).
+  - Deliver at least one fully working end‑to‑end feature (task toggle on Collaboration Board).
+  - Establish basic visual identity and responsive layout for key screens.
+
+- **Sprint 2 – Depth, Reliability & Accessibility**
+
+  - Expand functionality on existing pages (richer board interactions, listings and chat behaviors).
+  - Harden error handling and loading states.
+  - Improve responsiveness and achieve or approach the target Lighthouse Accessibility score.
+
+- **Sprint 3 – Polish, Production Readiness & Deployment**
+  - Finalize UX polish across pages and devices.
+  - Close gaps against the Definition of Done (accessibility, docs, deployment).
+  - Ensure main is production‑ready and deployed with a clear feature list in this README.
+
+## Definition of Done
+
+For a feature or sprint to be considered **Done**, all of the following must be true:
+
+- **Responsive UI**: Pages are responsive and look good on both desktop and mobile screens.
+- **End‑to‑end flow**: Functionality works end‑to‑end (User → Frontend → Backend → Database).
+- **Accessibility**: Lighthouse reports an Accessibility score **≥ 85%** on key flows.
+- **Documentation**: This `README` is updated with an accurate list of working features.
+- **Code integration**: Changes are merged into the `main` branch.
+- **Deployment**: Changes are deployed to the production environment.
+
+Sprint 1 aims to deliver a shippable vertical slice that already respects the Definition of Done for at least one core flow (Collaboration Board task toggling), and to lay the groundwork for sprints 2 and 3 to bring the whole product up to these standards.
 
 ## Tech Stack
 
@@ -143,6 +182,51 @@ The implemented slice is: **task toggle on Collaboration Board -> backend API ->
    psql -U postgres -d homesync -c "select collab_item_id, title, status from collab_item where item_type='task' order by collab_item_id;"
    ```
    You should see the toggled task status updated (for example `todo` <-> `done`).
+
+## Current Working Features
+
+These features are currently implemented and participate in the vertical slice to varying degrees:
+
+- **Home Page**
+
+  - Marketing overview of HomeSync with hero, value proposition, and calls‑to‑action.
+  - Navigation entry point to Listings, Collaboration Board, Chat, and Auth flows.
+
+- **Authentication Shell (Login & Signup)**
+
+  - Login and signup forms with validation using `react-hook-form` + `zod`.
+  - Basic “remember me” behavior on login.
+  - Role selection on signup (`buyer`, `realtor`, `collaborator`) to personalize future flows.
+
+- **Listings Page**
+
+  - Fetches listings from the backend (`/api/listings`) and renders responsive listing cards.
+  - Each card shows price, address, key stats (beds, baths, square footage), and status badge.
+  - Listing details open in a dialog with richer information (description, stats, actions).
+
+- **Collaboration Board**
+
+  - Vision board section with draggable inspiration cards.
+  - Notes, Tasks, and Documents columns backed by `/api/board/items`.
+  - **Task toggle**: Clicking the status icon sends a PATCH to `/api/board/items/:id/toggle`, updates PostgreSQL, and immediately updates the UI (our main vertical slice).
+
+- **Chat Page**
+  - Chat list sidebar that loads conversations from `/api/chats`.
+  - Message window that fetches and displays messages for the selected chat from `/api/chats/:id/messages`.
+  - Ability to send a message via POST to `/api/chats/:id/messages`, appending it to the current thread.
+
+> **Note:** Some features may not yet fully meet the Definition of Done for accessibility score, production deployment, or all edge cases. Those gaps are expected to be closed in sprints 2 and 3.
+
+## End Goal / Product Vision
+
+When all three sprints are complete, HomeSync should feel like:
+
+- **One shared workspace** for buyers, agents, and collaborators to coordinate listings, tasks, documents, and messages in a single place.
+- A clear **journey from initial search through closing**, represented in the UI with timelines, task lists, and communication threads.
+- A **production‑ready PERN application** with a cohesive visual identity, responsive layouts, and solid accessibility (Lighthouse Accessibility score ≥ 85% on key flows).
+- A project that is easy for new contributors to set up, understand, and extend, thanks to a clean architecture and up‑to‑date documentation.
+
+This repo is intentionally structured as a simple monorepo so that the entire HomeSync experience (frontend, backend, database) can be run, tested, and evolved as a single unit.
 
 ## Repository Notes for GitHub
 
