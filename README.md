@@ -1,5 +1,25 @@
 # HomeSync (PERN Monorepo)
 
+## EARS Requirements
+### Complete
+1. When a user enters valid credentials, the system shall sign the user in.
+2. When a user is signed in, the system shall maintain the user’s session until the user logs out or the session expires.
+3. When a user is signed in, the system shall display the user’s name in the interface.
+4. When a user logs out, the system shall end the user’s session and return the user to the login page.
+5. When a user accesses the application from a mobile or desktop device, the system shall present a usable responsive layout.
+
+### Not Complete
+1. When a user opens the collaboration board, the system shall display the current board items stored in the database.
+2. When a user changes a task status on the collaboration board, the system shall update the task status in the database and display the updated status in the interface.
+3. When a user opens the listings page, the system shall display available property listings.
+4. When a user selects a listing, the system shall display the details for that listing.
+5. When a user opens a conversation, the system shall display the messages for that conversation.
+6. When a user sends a message, the system shall store the message and display it in the conversation.
+7. When the system is retrieving page data, the system shall display a loading indicator until the data is available.
+8. If the system cannot complete a request, the system shall display an error message to the user.
+9. When a user performs a supported action, the system shall process the action end-to-end through the frontend, backend, and database.
+
+
 ## App Summary
 
 *Test Deploy
