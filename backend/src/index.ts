@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import express from "express";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPool, verifyDatabaseConnection } from "./db.js";
@@ -15,6 +16,150 @@ const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 app.use(express.json());
+
+type AuthenticatedUser = {
+  email: string;
+};
+
+type LoginRequest = {
+  email?: string;
+  password?: string;
+};
+
+type UserRow = {
+  email: string;
+};
+
+const SESSION_COOKIE_NAME = "homesync_session";
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+const sessions = new Map<string, AuthenticatedUser>();
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  if (!header) {
+    return {};
+  }
+
+  return header
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((accumulator, part) => {
+      const separator = part.indexOf("=");
+      if (separator <= 0) {
+        return accumulator;
+      }
+
+      const key = part.slice(0, separator).trim();
+      const value = part.slice(separator + 1).trim();
+
+      if (!key) {
+        return accumulator;
+      }
+
+      accumulator[key] = decodeURIComponent(value);
+      return accumulator;
+    }, {});
+}
+
+function getSessionId(req: express.Request): string | undefined {
+  const cookies = parseCookies(req.headers.cookie);
+  const sessionId = cookies[SESSION_COOKIE_NAME]?.trim();
+  return sessionId ? sessionId : undefined;
+}
+
+function buildSessionCookie(sessionId: string): string {
+  return [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${SESSION_TTL_SECONDS}`,
+  ].join("; ");
+}
+
+function clearSessionCookie(): string {
+  return [
+    `${SESSION_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ].join("; ");
+}
+
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = (req.body ?? {}) as LoginRequest;
+  const normalizedEmail = email?.trim().toLowerCase();
+  const normalizedPassword = password?.trim();
+
+  if (!normalizedEmail || !normalizedPassword) {
+    return res
+      .status(400)
+      .json({ message: "Email and password are required." });
+  }
+
+  const pool = getPool();
+  if (!pool) {
+    return res.status(503).json({
+      message: "Database connection is unavailable. Unable to sign in.",
+    });
+  }
+
+  try {
+    const query = `
+      select email
+      from app_user
+      where lower(email) = $1
+        and password_hash = $2
+        and is_active = true
+      limit 1
+    `;
+    const result = await pool.query<UserRow>(query, [
+      normalizedEmail,
+      normalizedPassword,
+    ]);
+
+    if (result.rowCount === 0) {
+      return res
+        .status(401)
+        .json({ message: "Email or password is incorrect." });
+    }
+
+    const user: AuthenticatedUser = { email: result.rows[0].email };
+    const sessionId = randomUUID();
+    sessions.set(sessionId, user);
+
+    res.setHeader("Set-Cookie", buildSessionCookie(sessionId));
+    return res.json(user);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return res.status(500).json({ message: `Unable to sign in: ${message}` });
+  }
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const sessionId = getSessionId(req);
+  if (!sessionId) {
+    return res.status(401).json({ message: "Not authenticated." });
+  }
+
+  const user = sessions.get(sessionId);
+  if (!user) {
+    return res.status(401).json({ message: "Not authenticated." });
+  }
+
+  return res.json(user);
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const sessionId = getSessionId(req);
+  if (sessionId) {
+    sessions.delete(sessionId);
+  }
+
+  res.setHeader("Set-Cookie", clearSessionCookie());
+  return res.status(204).send();
+});
 
 type DbTaskStatus = "todo" | "in_progress" | "done";
 type UiTaskStatus = "To Do" | "In Progress" | "Done";
@@ -59,7 +204,8 @@ app.get("/api/tasks", async (_req, res) => {
   const pool = getPool();
   if (!pool) {
     return res.status(503).json({
-      message: "Database connection is unavailable. Set DATABASE_URL to enable tasks.",
+      message:
+        "Database connection is unavailable. Set DATABASE_URL to enable tasks.",
     });
   }
 
@@ -74,7 +220,9 @@ app.get("/api/tasks", async (_req, res) => {
     return res.json(result.rows.map(toTaskResponse));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ message: `Unable to load tasks: ${message}` });
+    return res
+      .status(500)
+      .json({ message: `Unable to load tasks: ${message}` });
   }
 });
 
@@ -87,7 +235,8 @@ app.patch("/api/tasks/:id/toggle", async (req, res) => {
   const pool = getPool();
   if (!pool) {
     return res.status(503).json({
-      message: "Database connection is unavailable. Set DATABASE_URL to enable task updates.",
+      message:
+        "Database connection is unavailable. Set DATABASE_URL to enable task updates.",
     });
   }
 
@@ -106,7 +255,9 @@ app.patch("/api/tasks/:id/toggle", async (req, res) => {
     return res.json(toTaskResponse(result.rows[0]));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ message: `Unable to update task: ${message}` });
+    return res
+      .status(500)
+      .json({ message: `Unable to update task: ${message}` });
   }
 });
 
