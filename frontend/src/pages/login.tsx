@@ -2,6 +2,11 @@ import { FormEvent, useState } from "react";
 import { Link } from "wouter";
 import { useLocation } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +49,33 @@ export default function LoginPage() {
       }
     } finally {
       setIsSubmitting(false);
+import { useAuth } from "@/contexts/AuthContext";
+
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginForm = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const [, navigate] = useLocation();
+  const [error, setError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
+
+  async function onSubmit(data: LoginForm) {
+    setError(null);
+    try {
+      await login(data.email, data.password);
+      navigate("/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Login failed. Please try again.");
     }
   }
 
@@ -61,12 +93,17 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl border-border/50">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>
-            Enter your email to sign in to your account
-          </CardDescription>
+          <CardDescription>Enter your email to sign in to your account</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -78,6 +115,11 @@ export default function LoginPage() {
                 required
                 autoComplete="email"
               />
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -109,6 +151,10 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              <Input id="password" type="password" {...register("password")} />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox id="remember" />
@@ -130,6 +176,7 @@ export default function LoginPage() {
               type="submit"
               disabled={isSubmitting}
             >
+            <Button className="w-full text-md py-5" size="lg" disabled={isSubmitting}>
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </CardContent>
@@ -140,9 +187,7 @@ export default function LoginPage() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with
-              </span>
+              <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
           <Link href="/">
@@ -155,6 +200,9 @@ export default function LoginPage() {
             <a href="#" className="text-primary hover:underline font-medium">
               Sign up
             </a>
+            <Link href="/signup" className="text-primary hover:underline font-medium">
+              Sign up
+            </Link>
           </p>
         </CardFooter>
       </Card>

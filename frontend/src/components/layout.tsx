@@ -2,12 +2,20 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, MessageCircle, LogOut, MessageSquare } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Menu,
+  MessageCircle,
+  LogOut,
+  MessageSquare,
+} from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { NAVIGATION_ITEMS } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -21,6 +29,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     await logout();
     setOpen(false);
     setLocation("/login");
+  const displayName = user?.email.split("@")[0] ?? "";
+  const avatarInitial = displayName.charAt(0).toUpperCase();
+
+  async function handleLogout() {
+    setOpen(false);
+    await logout();
   }
 
   return (
@@ -41,6 +55,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               HomeSync
             </span>
           </Link>
+    {/* Header */}
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+      <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+        <img src="/logo.png" alt="HomeSync" className="h-10 md:h-12 w-auto object-contain" />
+        <span className="font-heading font-bold text-2xl text-primary tracking-tight hidden sm:block">
+          HomeSync
+        </span>
+      </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-6">
@@ -53,6 +76,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   location === item.path
                     ? "text-primary"
                     : "text-muted-foreground",
+                  location === item.path ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 {item.label}
@@ -66,6 +90,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   Logout
                 </Button>
               </>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8 border-2 border-primary/20">
+                  <AvatarFallback className="text-xs font-semibold">{avatarInitial}</AvatarFallback>
+                </Avatar>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  Sign out
+                </Button>
+              </div>
             ) : (
               <Link href="/login">
                 <Button variant="ghost" size="sm">
@@ -114,6 +146,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </p>
                     </div>
                   </div>
+              <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+              <div className="flex flex-col h-full">
+                <div className="p-6 pb-2">
+                  <div className="flex items-center gap-2 mb-6">
+                    <img src="/logo.png" alt="HomeSync" className="h-8 w-auto" />
+                    <span className="font-heading font-bold text-xl text-primary">HomeSync</span>
+                  </div>
+
+                  {/* User Profile Snippet in Menu */}
+                  {user ? (
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 mb-6">
+                      <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                        <AvatarFallback className="font-semibold">{avatarInitial}</AvatarFallback>
+                      </Avatar>
+                      <div className="overflow-hidden flex-1">
+                        <p className="text-sm font-medium truncate">{displayName}</p>
+                        <p className="text-xs text-muted-foreground truncate capitalize">
+                          {user.userType}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-6">
+                      <Link href="/login" onClick={() => setOpen(false)}>
+                        <Button className="w-full">Sign in</Button>
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 <div className="px-4 flex-1 overflow-y-auto">
@@ -134,6 +194,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                               location === item.path
                                 ? "bg-primary/10"
                                 : "bg-transparent",
+                        <Link key={item.path} href={item.path} onClick={() => setOpen(false)}>
+                          <div
+                            className={cn(
+                              "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group",
+                              location === item.path ? "bg-primary/10" : "bg-transparent",
                             )}
                           >
                             <div
@@ -153,6 +218,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                                   location === item.path
                                     ? "text-primary"
                                     : "text-foreground",
+                                  location === item.path ? "text-primary" : "text-foreground",
                                 )}
                               >
                                 {item.label}
@@ -177,6 +243,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             location === "/chat"
                               ? "bg-primary/10"
                               : "bg-transparent",
+                            location === "/chat" ? "bg-primary/10" : "bg-transparent",
                           )}
                         >
                           <div
@@ -196,6 +263,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                                 location === "/chat"
                                   ? "text-primary"
                                   : "text-foreground",
+                                location === "/chat" ? "text-primary" : "text-foreground",
                               )}
                             >
                               Chat
@@ -246,6 +314,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         </Link>
                       )}
                     </div>
+                    {user && (
+                      <div className="space-y-1">
+                        <h4 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                          Account
+                        </h4>
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group"
+                        >
+                          <div className="p-2 rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+                            <LogOut className="h-5 w-5" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-sm">Sign out</p>
+                            <p className="text-xs text-muted-foreground">End your session</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
