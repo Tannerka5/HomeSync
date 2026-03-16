@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { Menu, MessageCircle, LogOut, MessageSquare } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Menu,
   MessageCircle,
@@ -11,14 +13,22 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { NAVIGATION_ITEMS } from "@/lib/data";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
 
+  const email = user?.email ?? "";
+  const avatarFallback = email ? email.slice(0, 2).toUpperCase() : "HS";
+
+  async function handleLogout() {
+    await logout();
+    setOpen(false);
+    setLocation("/login");
   const displayName = user?.email.split("@")[0] ?? "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
@@ -29,6 +39,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
+      {/* Header */}
+      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center gap-2 transition-opacity hover:opacity-80"
+          >
+            <img
+              src="/logo.png"
+              alt="HomeSync"
+              className="h-8 w-auto object-contain"
+            />
+            <span className="font-heading font-bold text-xl text-primary tracking-tight hidden sm:block">
+              HomeSync
+            </span>
+          </Link>
     {/* Header */}
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
     <div className="container mx-auto px-6 h-20 flex items-center justify-between">
@@ -47,6 +73,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 href={item.path}
                 className={cn(
                   "text-sm font-medium transition-colors hover:text-primary",
+                  location === item.path
+                    ? "text-primary"
+                    : "text-muted-foreground",
                   location === item.path ? "text-primary" : "text-muted-foreground",
                 )}
               >
@@ -55,6 +84,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             ))}
             <Separator orientation="vertical" className="h-6" />
             {user ? (
+              <>
+                <span className="text-sm text-muted-foreground">{email}</span>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  Logout
+                </Button>
+              </>
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8 border-2 border-primary/20">
                   <AvatarFallback className="text-xs font-semibold">{avatarInitial}</AvatarFallback>
@@ -84,6 +119,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
               side="right"
               className="w-[300px] sm:w-[350px] p-0 border-l border-border/50 shadow-2xl"
             >
+              <div className="flex flex-col h-full">
+                <div className="p-6 pb-2">
+                  <div className="flex items-center gap-2 mb-6">
+                    <img
+                      src="/logo.png"
+                      alt="HomeSync"
+                      className="h-8 w-auto"
+                    />
+                    <span className="font-heading font-bold text-xl text-primary">
+                      HomeSync
+                    </span>
+                  </div>
+
+                  {/* User Profile Snippet in Menu */}
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 mb-6">
+                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                      <AvatarFallback>{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <div className="overflow-hidden">
+                      <p className="text-sm font-medium truncate">
+                        {user ? email : "Guest"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user ? "Signed in" : "Browsing as guest"}
+                      </p>
+                    </div>
+                  </div>
               <SheetTitle className="sr-only">Navigation menu</SheetTitle>
               <div className="flex flex-col h-full">
                 <div className="p-6 pb-2">
@@ -121,6 +183,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         Explore
                       </h4>
                       {NAVIGATION_ITEMS.slice(0, 3).map((item) => (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setOpen(false)}
+                        >
+                          <div
+                            className={cn(
+                              "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group",
+                              location === item.path
+                                ? "bg-primary/10"
+                                : "bg-transparent",
                         <Link key={item.path} href={item.path} onClick={() => setOpen(false)}>
                           <div
                             className={cn(
@@ -142,6 +215,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                               <p
                                 className={cn(
                                   "font-medium text-sm",
+                                  location === item.path
+                                    ? "text-primary"
+                                    : "text-foreground",
                                   location === item.path ? "text-primary" : "text-foreground",
                                 )}
                               >
@@ -164,6 +240,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <div
                           className={cn(
                             "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group",
+                            location === "/chat"
+                              ? "bg-primary/10"
+                              : "bg-transparent",
                             location === "/chat" ? "bg-primary/10" : "bg-transparent",
                           )}
                         >
@@ -181,6 +260,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             <p
                               className={cn(
                                 "font-medium text-sm",
+                                location === "/chat"
+                                  ? "text-primary"
+                                  : "text-foreground",
                                 location === "/chat" ? "text-primary" : "text-foreground",
                               )}
                             >
@@ -194,6 +276,44 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </Link>
                     </div>
 
+                    <div className="space-y-1">
+                      <h4 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Account
+                      </h4>
+                      {user ? (
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full"
+                        >
+                          <div className="flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group">
+                            <div className="p-2 rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+                              <LogOut className="h-5 w-5" />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-medium text-sm">Logout</p>
+                              <p className="text-xs text-muted-foreground">
+                                Sign out of your workspace
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ) : (
+                        <Link href="/login" onClick={() => setOpen(false)}>
+                          <div className="flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group">
+                            <div className="p-2 rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+                              <MessageSquare className="h-5 w-5" />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-medium text-sm">Login</p>
+                              <p className="text-xs text-muted-foreground">
+                                Access your workspace
+                              </p>
+                            </div>
+                          </div>
+                        </Link>
+                      )}
+                    </div>
                     {user && (
                       <div className="space-y-1">
                         <h4 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
