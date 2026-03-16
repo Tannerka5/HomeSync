@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -45,6 +45,10 @@ export default function ListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    document.title = "Listings · HomeSync";
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -126,35 +130,47 @@ export default function ListingsPage() {
         {listings.map((listing) => (
           <Dialog key={listing.id}>
             <DialogTrigger asChild>
-              <Card className="group cursor-pointer overflow-hidden border-border/50 bg-card hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full">
+              <button
+                type="button"
+                className="group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card text-left text-card-foreground shadow hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full"
+              >
                 {/* Image */}
                 <div className="relative aspect-[4/3] overflow-hidden">
-                  <img 
-                    src={listing.image} 
-                    alt={listing.title} 
+                  <img
+                    src={listing.image}
+                    alt={`Photo of ${listing.title}`}
                     className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute top-3 right-3">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/20 text-white hover:bg-white hover:text-red-500 backdrop-blur-sm transition-colors">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 rounded-full bg-black/20 text-white hover:bg-white hover:text-red-500 backdrop-blur-sm transition-colors"
+                      aria-label="Save listing"
+                      onClick={(e) => e.preventDefault()}
+                    >
                       <Heart className="h-4 w-4" />
                     </Button>
                   </div>
                   <div className="absolute top-3 left-3">
-                     <Badge variant="secondary" className="bg-white/90 text-primary font-bold backdrop-blur-md shadow-sm">
-                        {listing.status}
-                     </Badge>
+                    <Badge
+                      variant="secondary"
+                      className="bg-white/90 text-primary font-bold backdrop-blur-md shadow-sm"
+                    >
+                      {listing.status}
+                    </Badge>
                   </div>
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                     <p className="text-white font-bold text-xl">{listing.price}</p>
+                    <p className="text-white font-bold text-xl">{listing.price}</p>
                   </div>
                 </div>
 
                 {/* Content */}
                 <CardContent className="p-4 flex-1 space-y-3">
                   <div>
-                    <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
+                    <h2 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
                       {listing.title}
-                    </h3>
+                    </h2>
                     <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
                       <MapPin className="h-3 w-3" />
                       <span className="truncate">{listing.address}</span>
@@ -176,19 +192,20 @@ export default function ListingsPage() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </button>
             </DialogTrigger>
             
             <DialogContent className="sm:max-w-[600px] overflow-hidden p-0 gap-0 border-none shadow-2xl">
               <div className="relative aspect-video w-full">
                 <img 
                   src={listing.image} 
-                  alt={listing.title} 
+                  alt={`Photo of ${listing.title}`} 
                   className="object-cover w-full h-full"
                 />
                 <Button 
                   className="absolute top-4 right-4 rounded-full bg-white/20 hover:bg-white/40 backdrop-blur text-white border-none shadow-none"
                   size="icon"
+                  aria-label="Save listing"
                 >
                    <Heart className="h-5 w-5" />
                 </Button>
@@ -221,7 +238,7 @@ export default function ListingsPage() {
                  </div>
 
                  <div className="space-y-2">
-                    <h4 className="font-semibold">About this home</h4>
+                    <h3 className="font-semibold">About this home</h3>
                     <p className="text-muted-foreground leading-relaxed">
                        {listing.description} This home features premium finishes, hardwood floors throughout, and lots of natural light. Perfect for entertaining or relaxing in your private oasis.
                     </p>

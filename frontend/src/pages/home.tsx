@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Search, Users, RefreshCcw, ChevronDown } from "lucide-react";
+import { useEffect } from "react";
 
 const STEPS = [
   {
@@ -24,6 +25,10 @@ const STEPS = [
 ];
 
 export default function HomePage() {
+  useEffect(() => {
+    document.title = "HomeSync";
+  }, []);
+
   return (
     <div className="flex flex-col">
       {/* ── Hero ── */}
