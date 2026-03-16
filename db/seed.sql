@@ -1,6 +1,7 @@
 -- HomeSync sample seed data
 -- Assumes db/schema.sql has already been executed.
 -- All demo users have password: password123
+-- Attempt Fix to Bad Gateway
 
 TRUNCATE TABLE
   message,
