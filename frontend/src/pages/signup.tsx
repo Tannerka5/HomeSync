@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ export default function SignupPage() {
   const { signup } = useAuth();
   const [, navigate] = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const [shakeKey, setShakeKey] = useState(0);
 
   const {
     register,
@@ -57,31 +59,49 @@ export default function SignupPage() {
       await signup(data.email, data.password, data.userType);
       navigate("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Signup failed. Please try again.");
+      const msg =
+        e instanceof Error ? e.message : "Signup failed. Please try again.";
+      setError(msg);
+      setShakeKey((k) => k + 1);
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 p-4">
-      <Link href="/" className="mb-8 flex flex-col items-center gap-2 group">
-        <div className="bg-primary/10 p-3 rounded-2xl group-hover:scale-110 transition-transform duration-300">
-          <img src="/logo.png" alt="HomeSync" className="h-10 w-auto" />
-        </div>
-        <span className="font-heading font-bold text-2xl text-foreground">HomeSync</span>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-background relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/8 blur-3xl"
+        aria-hidden="true"
+      />
+
+      <Link href="/" className="mb-8 flex flex-col items-center gap-1 group">
+        <img
+          src="/logo-full.png"
+          alt="HomeSync"
+          className="h-20 sm:h-24 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+        />
       </Link>
 
-      <Card className="w-full max-w-md shadow-xl border-border/50">
-        <CardHeader className="space-y-1 text-center">
+      <Card className="w-full max-w-md shadow-xl border-border/50 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/50" />
+
+        <CardHeader className="space-y-1 text-center pt-7">
           <CardTitle className="text-2xl">Create an account</CardTitle>
-          <CardDescription>Join HomeSync to collaborate on your home search</CardDescription>
+          <CardDescription>
+            Join HomeSync to collaborate on your home search
+          </CardDescription>
         </CardHeader>
+
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+              <div
+                key={shakeKey}
+                className="text-sm text-destructive bg-destructive/10 p-3 rounded-md animate-shake"
+              >
                 {error}
               </div>
             )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -91,26 +111,49 @@ export default function SignupPage() {
                 {...register("email")}
               />
               {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
               )}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" {...register("password")} />
+              <Input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                {...register("password")}
+              />
               {errors.password && (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
               )}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" {...register("confirmPassword")} />
+              <Input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+              />
               {errors.confirmPassword && (
-                <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.confirmPassword.message}
+                </p>
               )}
             </div>
+
             <div className="space-y-2">
               <Label>I am a...</Label>
-              <Select onValueChange={(val) => setValue("userType", val as SignupForm["userType"])}>
+              <Select
+                onValueChange={(val) =>
+                  setValue("userType", val as SignupForm["userType"])
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
@@ -121,18 +164,37 @@ export default function SignupPage() {
                 </SelectContent>
               </Select>
               {errors.userType && (
-                <p className="text-xs text-destructive">{errors.userType.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.userType.message}
+                </p>
               )}
             </div>
-            <Button className="w-full text-md py-5" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? "Creating account..." : "Create account"}
+
+            <Button
+              className="w-full text-md py-5"
+              size="lg"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Create account"
+              )}
             </Button>
           </CardContent>
         </form>
-        <CardFooter className="flex flex-col gap-4">
-          <p className="text-center text-xs text-muted-foreground">
+
+        <CardFooter className="flex flex-col gap-4 pb-7">
+          <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary hover:underline font-medium">
+            <Link
+              href="/login"
+              className="text-primary hover:underline font-medium"
+            >
               Sign in
             </Link>
           </p>

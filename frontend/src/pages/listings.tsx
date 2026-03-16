@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Filter, 
   MapPin, 
@@ -6,7 +6,8 @@ import {
   Bath, 
   Maximize, 
   Heart,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from "lucide-react";
 import { 
   DropdownMenu,
@@ -17,20 +18,52 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { LISTINGS } from "@/lib/data";
+
+type Listing = {
+  id: number;
+  title: string;
+  price: string;
+  address: string;
+  beds: number;
+  baths: number;
+  sqft: number;
+  image: string;
+  description: string;
+  status: string;
+};
 
 export default function ListingsPage() {
   const [sortOrder, setSortOrder] = useState("Recommended");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/listings", { credentials: "include" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError(body.message ?? "Failed to load listings.");
+          return;
+        }
+        setListings(await res.json());
+      } catch {
+        setError("Could not reach backend.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-10 space-y-8">
@@ -77,9 +110,20 @@ export default function ListingsPage() {
         </div>
       </div>
 
+      {/* Loading / Error */}
+      {loading && (
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+      {error && !loading && (
+        <p className="text-center text-muted-foreground py-10">{error}</p>
+      )}
+
       {/* Listings Grid */}
+      {!loading && !error && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {LISTINGS.map((listing) => (
+        {listings.map((listing) => (
           <Dialog key={listing.id}>
             <DialogTrigger asChild>
               <Card className="group cursor-pointer overflow-hidden border-border/50 bg-card hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full">
@@ -192,6 +236,7 @@ export default function ListingsPage() {
           </Dialog>
         ))}
       </div>
+      )}
     </div>
   );
 }

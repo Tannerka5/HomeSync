@@ -26,77 +26,74 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_BOARD } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
-type BoardTask = {
+const VISION_BOARD_ITEMS = [
+  { id: "vision-1", image: "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=400&q=80", title: "Modern Kitchen" },
+  { id: "vision-2", image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=400&q=80", title: "Cozy Living Room" },
+  { id: "vision-3", image: "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?auto=format&fit=crop&w=400&q=80", title: "Minimalist Entryway" },
+  { id: "vision-4", image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80", title: "Luxury Bathroom" },
+];
+
+type BoardItem = {
   id: string;
+  numericId: number;
+  type: string;
   title: string;
+  content: string;
   status: "To Do" | "In Progress" | "Done";
-  date?: string;
+  date: string;
 };
 
 export default function BoardPage() {
-  const [visionItems, setVisionItems] = useState(MOCK_BOARD.visionBoard);
-  const [tasks, setTasks] = useState<BoardTask[]>(MOCK_BOARD.tasks as BoardTask[]);
+  const [visionItems, setVisionItems] = useState(VISION_BOARD_ITEMS);
+  const [tasks, setTasks] = useState<BoardItem[]>([]);
+  const [notes, setNotes] = useState<BoardItem[]>([]);
+  const [documents, setDocuments] = useState<BoardItem[]>([]);
   const [taskMessage, setTaskMessage] = useState<string>("");
 
   useEffect(() => {
-    async function loadTasks() {
+    async function loadItems() {
       try {
-        const response = await fetch("/api/tasks");
+        const response = await fetch("/api/board/items", { credentials: "include" });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          const message =
-            typeof payload.message === "string"
-              ? payload.message
-              : "Unable to load tasks from the database.";
-          setTaskMessage(message);
+          setTaskMessage(payload.message ?? "Unable to load board items.");
           return;
         }
 
-        const data = (await response.json()) as BoardTask[];
-        if (Array.isArray(data) && data.length > 0) {
-          setTasks(data);
-          setTaskMessage("");
-        } else if (Array.isArray(data) && data.length === 0) {
-          setTasks([]);
-          setTaskMessage("No tasks found in the database.");
-        }
+        const data = (await response.json()) as BoardItem[];
+        setTasks(data.filter((d) => d.type === "task"));
+        setNotes(data.filter((d) => d.type === "note"));
+        setDocuments(data.filter((d) => d.type === "document"));
+        setTaskMessage("");
       } catch {
         setTaskMessage("Could not reach backend. Start frontend and backend together with npm run dev.");
       }
     }
 
-    loadTasks();
+    loadItems();
   }, []);
 
   async function toggleTaskStatus(taskId: string) {
     const numericId = Number(taskId.replace("task-", ""));
-    if (!Number.isInteger(numericId)) {
-      return;
-    }
+    if (!Number.isInteger(numericId)) return;
 
     try {
-      const response = await fetch(`/api/tasks/${numericId}/toggle`, {
+      const response = await fetch(`/api/board/items/${numericId}/toggle`, {
         method: "PATCH",
+        credentials: "include",
       });
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message =
-          typeof payload.message === "string"
-            ? payload.message
-            : "Failed to update task.";
-        setTaskMessage(message);
+        setTaskMessage(payload.message ?? "Failed to update task.");
         return;
       }
 
-      const updatedTask = payload as BoardTask;
-      setTasks((previous) =>
-        previous.map((task) =>
-          task.id === updatedTask.id ? updatedTask : task,
-        ),
+      const updatedTask = payload as BoardItem;
+      setTasks((prev) =>
+        prev.map((t) => (t.id === updatedTask.id ? { ...t, status: updatedTask.status } : t)),
       );
       setTaskMessage(`Updated "${updatedTask.title}" to ${updatedTask.status}.`);
     } catch {
@@ -246,11 +243,11 @@ export default function BoardPage() {
                <span className="bg-yellow-100 text-yellow-700 p-1.5 rounded-xl"><FileText className="h-4 w-4" /></span>
                Notes
              </h3>
-             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">2</Badge>
+             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">{notes.length}</Badge>
           </div>
           
           <div className="space-y-3">
-            {MOCK_BOARD.notes.map((note) => (
+            {notes.map((note) => (
               <Card key={note.id} className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-yellow-400 group rounded-2xl">
                 <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
                   <CardTitle className="text-base font-bold leading-tight group-hover:text-primary transition-colors">{note.title}</CardTitle>
@@ -323,11 +320,11 @@ export default function BoardPage() {
                <span className="bg-blue-100 text-blue-700 p-1.5 rounded-xl"><File className="h-4 w-4" /></span>
                Documents
              </h3>
-             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">3</Badge>
+             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">{documents.length}</Badge>
           </div>
           
           <div className="space-y-3">
-             {MOCK_BOARD.documents.map((doc) => (
+             {documents.map((doc) => (
                <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer rounded-2xl border-border/50 group">
                  <CardContent className="p-4 flex items-center gap-4">
                    <div className="h-10 w-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center shrink-0 group-hover:bg-red-500 group-hover:text-white transition-colors">

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, MessageCircle, LogOut, MessageSquare } from "lucide-react";
 import {
@@ -18,6 +18,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 12);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const displayName = user?.email.split("@")[0] ?? "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
@@ -30,54 +39,68 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+      <header
+        className={cn(
+          "sticky top-0 z-40 w-full border-b transition-all duration-300 backdrop-blur-md",
+          scrolled
+            ? "bg-background/70 border-border/40 shadow-sm"
+            : "bg-transparent border-transparent",
+        )}
+      >
+        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <Link
             href="/"
-            className="flex items-center gap-3 transition-opacity hover:opacity-80"
+            className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
           >
             <img
               src="/logo.png"
               alt="HomeSync"
-              className="h-10 md:h-12 w-auto object-contain"
+              className="h-9 md:h-10 w-auto object-contain"
             />
-            <span className="font-heading font-bold text-2xl text-primary tracking-tight hidden sm:block">
+            <span className="font-heading font-bold text-xl text-primary tracking-tight hidden sm:block">
               HomeSync
             </span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden md:flex items-center gap-1">
             {NAVIGATION_ITEMS.map((item) => (
               <Link
                 key={item.path}
                 href={item.path}
                 className={cn(
-                  "text-sm font-medium transition-colors hover:text-primary",
+                  "text-sm font-medium px-3.5 py-1.5 rounded-full transition-all duration-200",
                   location === item.path
-                    ? "text-primary"
-                    : "text-muted-foreground",
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
               >
                 {item.label}
               </Link>
             ))}
-            <Separator orientation="vertical" className="h-6" />
+
+            <Separator orientation="vertical" className="h-6 mx-2" />
+
             {user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8 border-2 border-primary/20">
-                  <AvatarFallback className="text-xs font-semibold">
+                  <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
                     {avatarInitial}
                   </AvatarFallback>
                 </Avatar>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   Sign out
                 </Button>
               </div>
             ) : (
               <Link href="/login">
-                <Button variant="ghost" size="sm">
-                  Login
+                <Button size="sm">
+                  Sign in
                 </Button>
               </Link>
             )}
@@ -87,13 +110,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-6 w-6" />
+                <Menu className="h-5 w-5" />
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[300px] sm:w-[350px] p-0 border-l border-border/50 shadow-2xl"
+              className="w-[300px] sm:w-[340px] p-0 border-l border-border/50 shadow-2xl"
             >
               <SheetTitle className="sr-only">Navigation menu</SheetTitle>
               <div className="flex flex-col h-full">
@@ -110,9 +133,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
 
                   {user ? (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 mb-6">
-                      <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                        <AvatarFallback className="font-semibold">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 mb-6">
+                      <Avatar className="h-10 w-10 border-2 border-primary/20">
+                        <AvatarFallback className="font-semibold bg-primary/10 text-primary">
                           {avatarInitial}
                         </AvatarFallback>
                       </Avatar>
@@ -148,7 +171,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         >
                           <div
                             className={cn(
-                              "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group",
+                              "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer",
                               location === item.path
                                 ? "bg-primary/10"
                                 : "bg-transparent",
@@ -191,7 +214,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <Link href="/chat" onClick={() => setOpen(false)}>
                         <div
                           className={cn(
-                            "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group",
+                            "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer",
                             location === "/chat"
                               ? "bg-primary/10"
                               : "bg-transparent",
@@ -233,7 +256,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         </h4>
                         <button
                           onClick={handleLogout}
-                          className="w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group"
+                          className="w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer"
                         >
                           <div className="p-2 rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
                             <LogOut className="h-5 w-5" />
@@ -252,7 +275,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
                 <div className="p-6 border-t bg-muted/20">
                   <p className="text-xs text-center text-muted-foreground">
-                    &copy; 2025 HomeSync Inc.
+                    &copy; {new Date().getFullYear()} HomeSync Inc.
                   </p>
                 </div>
               </div>
@@ -265,7 +288,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <Link href="/chat">
         <Button
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl bg-primary hover:bg-accent hover:scale-105 transition-all z-50 flex items-center justify-center"
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl bg-primary hover:bg-primary/90 hover:scale-105 transition-all z-50 flex items-center justify-center animate-pulse-ring"
           aria-label="Open chat"
         >
           <MessageCircle className="h-6 w-6 text-white" />

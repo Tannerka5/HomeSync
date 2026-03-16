@@ -1,10 +1,16 @@
 import { config } from "dotenv";
 import express from "express";
+import type { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPool, verifyDatabaseConnection } from "./db.js";
+import { verifyDatabaseConnection } from "./db.js";
+import { requireAuth } from "./middleware/requireAuth.js";
 import authRouter from "./routes/auth.js";
+import listingsRouter from "./routes/listings.js";
+import boardRouter from "./routes/board.js";
+import chatsRouter from "./routes/chats.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -16,109 +22,52 @@ config({ path: path.join(repoRoot, ".env"), override: false });
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
-app.use(express.json());
+// --- Security headers ---
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
-app.use("/api/auth", authRouter);
 
-type DbTaskStatus = "todo" | "in_progress" | "done";
-type UiTaskStatus = "To Do" | "In Progress" | "Done";
-
-type TaskRow = {
-  collab_item_id: number;
-  title: string;
-  status: DbTaskStatus;
-  due_date: string | null;
-};
-
-type TaskResponse = {
-  id: string;
-  title: string;
-  status: UiTaskStatus;
-  date: string;
-};
-
-function mapDbStatusToUi(status: DbTaskStatus): UiTaskStatus {
-  if (status === "done") return "Done";
-  if (status === "in_progress") return "In Progress";
-  return "To Do";
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function toTaskResponse(row: TaskRow): TaskResponse {
-  return {
-    id: `task-${row.collab_item_id}`,
-    title: row.title,
-    status: mapDbStatusToUi(row.status),
-    date: formatDate(row.due_date),
-  };
-}
-
-app.get("/api/tasks", async (_req, res) => {
-  const pool = getPool();
-  if (!pool) {
-    return res.status(503).json({
-      message:
-        "Database connection is unavailable. Set DATABASE_URL to enable tasks.",
-    });
-  }
-
-  try {
-    const query = `
-      select collab_item_id, title, status, due_date
-      from collab_item
-      where item_type = 'task'
-      order by collab_item_id asc
-    `;
-    const result = await pool.query<TaskRow>(query);
-    return res.json(result.rows.map(toTaskResponse));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return res
-      .status(500)
-      .json({ message: `Unable to load tasks: ${message}` });
-  }
-});
-
-app.patch("/api/tasks/:id/toggle", async (req, res) => {
-  const taskId = Number(req.params.id);
-  if (!Number.isInteger(taskId) || taskId <= 0) {
-    return res.status(400).json({ message: "Invalid task id." });
-  }
-
-  const pool = getPool();
-  if (!pool) {
-    return res.status(503).json({
-      message:
-        "Database connection is unavailable. Set DATABASE_URL to enable task updates.",
-    });
-  }
-
-  try {
-    const toggleQuery = `
-      update collab_item
-      set status = case when status = 'done' then 'todo' else 'done' end
-      where collab_item_id = $1
-        and item_type = 'task'
-      returning collab_item_id, title, status, due_date
-    `;
-    const result = await pool.query<TaskRow>(toggleQuery, [taskId]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Task not found." });
+// --- CSRF Origin validation (production only, when ALLOWED_ORIGINS is set) ---
+if (process.env.ALLOWED_ORIGINS) {
+  const allowed = process.env.ALLOWED_ORIGINS.split(",");
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+    const origin = req.headers.origin ?? req.headers.referer;
+    if (!origin) return next();
+    try {
+      const url = new URL(String(origin));
+      if (!allowed.includes(url.origin)) {
+        return res.status(403).json({ message: "Forbidden." });
+      }
+    } catch {
+      return res.status(403).json({ message: "Forbidden." });
     }
-    return res.json(toTaskResponse(result.rows[0]));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return res
-      .status(500)
-      .json({ message: `Unable to update task: ${message}` });
-  }
+    next();
+  });
+}
+
+// --- Rate limiting on auth endpoints ---
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many attempts. Please try again later." },
 });
+
+// --- Routes ---
+app.use("/api/auth", authLimiter, authRouter);
+app.use("/api/listings", requireAuth, listingsRouter);
+app.use("/api/board", requireAuth, boardRouter);
+app.use("/api/chats", requireAuth, chatsRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -126,6 +75,12 @@ app.get("/api/health", (_req, res) => {
     service: "backend",
     timestamp: new Date().toISOString(),
   });
+});
+
+// --- Centralized error handler ---
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("[backend] Unhandled error:", err);
+  res.status(500).json({ message: "Internal server error." });
 });
 
 app.listen(port, async () => {
