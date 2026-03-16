@@ -28,8 +28,9 @@ jobs:
             npm install
             npm run build
 
-            # Run database migrations (idempotent via IF NOT EXISTS)
+            # Run database migrations and bootstrap demo data in empty environments
             psql "$DATABASE_URL" -f db/schema.sql
+            psql "$DATABASE_URL" -f db/bootstrap.sql
 
             sudo rm -rf /usr/share/nginx/homesync/*
             sudo cp -r /home/ec2-user/HomeSync/frontend/dist/* /usr/share/nginx/homesync/
