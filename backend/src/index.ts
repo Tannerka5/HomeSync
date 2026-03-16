@@ -22,6 +22,10 @@ config({ path: path.join(repoRoot, ".env"), override: false });
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // --- Security headers ---
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
