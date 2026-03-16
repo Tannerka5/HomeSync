@@ -13,12 +13,14 @@ jobs:
       - name: Deploy over SSH
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DATABASE_URL
+          envs: DATABASE_URL,JWT_SECRET,ALLOWED_ORIGINS
           script: |
             set -e
 
@@ -37,5 +39,5 @@ jobs:
             sudo chown -R nginx:nginx /usr/share/nginx/homesync
             sudo chmod -R 755 /usr/share/nginx/homesync
 
-            pm2 restart ecosystem.config.cjs --env production
+            pm2 restart ecosystem.config.cjs --env production --update-env
             sudo systemctl restart nginx
