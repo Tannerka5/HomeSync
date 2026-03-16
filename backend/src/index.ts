@@ -1,8 +1,10 @@
 import { config } from "dotenv";
 import express from "express";
+import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPool, verifyDatabaseConnection } from "./db.js";
+import authRouter from "./routes/auth.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -15,6 +17,8 @@ const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 app.use(express.json());
+app.use(cookieParser());
+app.use("/api/auth", authRouter);
 
 type DbTaskStatus = "todo" | "in_progress" | "done";
 type UiTaskStatus = "To Do" | "In Progress" | "Done";

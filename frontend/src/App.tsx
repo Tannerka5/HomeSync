@@ -4,39 +4,51 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import HomePage from "@/pages/home";
 import ListingsPage from "@/pages/listings";
 import BoardPage from "@/pages/board";
 import ChatPage from "@/pages/chat";
 import LoginPage from "@/pages/login";
+import SignupPage from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
-      
-      {/* Wrapped routes with Main Layout */}
+      <Route path="/signup" component={SignupPage} />
+
+      {/* Public */}
       <Route path="/">
         <Layout>
           <HomePage />
         </Layout>
       </Route>
+
+      {/* Protected */}
       <Route path="/listings">
-        <Layout>
-          <ListingsPage />
-        </Layout>
+        <ProtectedRoute>
+          <Layout>
+            <ListingsPage />
+          </Layout>
+        </ProtectedRoute>
       </Route>
       <Route path="/board">
-        <Layout>
-          <BoardPage />
-        </Layout>
+        <ProtectedRoute>
+          <Layout>
+            <BoardPage />
+          </Layout>
+        </ProtectedRoute>
       </Route>
       <Route path="/chat">
-        <Layout>
-          <ChatPage />
-        </Layout>
+        <ProtectedRoute>
+          <Layout>
+            <ChatPage />
+          </Layout>
+        </ProtectedRoute>
       </Route>
 
       <Route component={NotFound} />
@@ -47,10 +59,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
