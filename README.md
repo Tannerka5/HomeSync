@@ -2,6 +2,25 @@
 
 **Live deployment:** `https://jonescg0.net`
 
+## EARS Requirements
+### Complete
+1. When a user enters valid credentials, the system shall sign the user in.
+2. When a user is signed in, the system shall maintain the user’s session until the user logs out or the session expires.
+3. When a user is signed in, the system shall display the user’s name in the interface.
+4. When a user logs out, the system shall end the user’s session and return the user to the login page.
+5. When a user accesses the application from a mobile or desktop device, the system shall present a usable responsive layout.
+
+### Not Complete
+1. When a user opens the collaboration board, the system shall display the current board items stored in the database.
+2. When a user changes a task status on the collaboration board, the system shall update the task status in the database and display the updated status in the interface.
+3. When a user opens the listings page, the system shall display available property listings.
+4. When a user selects a listing, the system shall display the details for that listing.
+5. When a user opens a conversation, the system shall display the messages for that conversation.
+6. When a user sends a message, the system shall store the message and display it in the conversation.
+7. When the system is retrieving page data, the system shall display a loading indicator until the data is available.
+8. If the system cannot complete a request, the system shall display an error message to the user.
+9. When a user performs a supported action, the system shall process the action end-to-end through the frontend, backend, and database.
+
 ## App Summary
 
 HomeSync solves a common real estate pain point: buyers, agents, and collaborators often communicate across disconnected tools, which causes lost context and missed updates. The primary user is a home buyer who needs one place to view listings, collaborate with an agent, and track tasks. This application provides a single web experience where collaboration and communication happen directly in the buying workflow. The frontend offers pages for listings, chat, and a collaboration board, while the backend exposes API routes for data operations. PostgreSQL stores persistent records for users, listings, conversations, messages, and board items. A working vertical slice is implemented: toggling a task from the collaboration board updates PostgreSQL and immediately reflects in the UI. The repo is organized as a minimal beginner-friendly monorepo so frontend and backend can run together with one command.
@@ -208,47 +227,6 @@ When all three sprints are complete, HomeSync should feel like:
 - A project that is easy for new contributors to set up, understand, and extend, thanks to a clean architecture and up‑to‑date documentation.
 
 This repo is intentionally structured as a simple monorepo so that the entire HomeSync experience (frontend, backend, database) can be run, tested, and evolved as a single unit.
-
-## Requirements (EARS Format)
-
-The following requirements use EARS‑style phrasing and are grouped by feature area.
-
-### Collaboration Board
-
-- **The system shall** display a Collaboration Board containing sections for vision items, notes, tasks, and documents for the current user.
-- **When** the user loads the Collaboration Board page, **the system shall** fetch all board items for that user from the backend and render them in the appropriate columns.
-- **When** the user clicks the task status icon on a board item, **the system shall** toggle the task status between `To Do`, `In Progress`, and `Done` (as defined by the backend) and persist the change in PostgreSQL.
-- **When** a task status is successfully updated in the database, **the system shall** immediately reflect the new status in the UI without requiring a full page reload.
-- **When** the backend cannot be reached or returns an error while loading or updating board items, **the system shall** show a clear, non‑technical error message on the Board page.
-
-### Listings
-
-- **The system shall** allow the user to browse a grid of property listings with price, address, beds, baths, square footage, and status.
-- **When** the user opens the Listings page, **the system shall** request listings from the `/api/listings` endpoint and render them in a responsive grid.
-- **When** the user clicks on a listing card, **the system shall** display a details view with richer information and calls‑to‑action (e.g. “Add to Board”, “Message Agent”).
-- **When** the user changes the sort order, **the system shall** update the listings view to reflect the selected sort option.
-- **When** the backend is unavailable or returns an error while loading listings, **the system shall** show an appropriate message instead of an empty grid.
-
-### Chat
-
-- **The system shall** present a list of chat conversations for the current user, showing name, role, last message, and unread status.
-- **When** the user selects a conversation from the chat list, **the system shall** load and display the message history for that conversation.
-- **When** the user sends a new message in an active conversation, **the system shall** post the message to the backend and append the confirmed message to the message list.
-- **When** there is no selected conversation on small screens, **the system shall** prioritize showing the conversation list and hide the message window until a chat is selected.
-
-### Navigation and Auth
-
-- **The system shall** provide global navigation links to Home, Listings, Collaboration Board, Chat, and Auth pages.
-- **When** the user submits valid login credentials, **the system shall** authenticate the user and navigate to the main Home or Dashboard experience.
-- **When** the user submits valid signup information including a role, **the system shall** create a new account and navigate to the main experience with that role associated.
-- **When** the user logs out, **the system shall** clear any session state in the frontend and redirect to the login page.
-
-### Cross‑cutting Quality Requirements
-
-- **The system shall** render core pages (Home, Listings, Collaboration Board, Chat, Auth) responsively on common desktop and mobile viewports.
-- **When** Lighthouse is run against key flows (Home, Listings, Collaboration Board, Auth), **the system shall** achieve an Accessibility score of at least **85%** once all sprints are complete.
-- **The system shall** support running the full stack locally via `npm run dev`, ensuring that user interactions flow from browser to frontend to backend to PostgreSQL without manual wiring.
-- **When** a feature is considered Done, **the system shall** have its behavior described in the `Current Working Features` section and be deployed to the production environment from the `main` branch.
 
 ## Repository Notes for GitHub
 
