@@ -2,7 +2,9 @@ module.exports = {
   apps: [
     {
       name: "homesync-backend",
-      script: "backend/dist/index.js",
+      cwd: "/home/ec2-user/HomeSync",
+      script: "node",
+      args: "backend/dist/index.js",
       env: {
         NODE_ENV: "development",
       },
