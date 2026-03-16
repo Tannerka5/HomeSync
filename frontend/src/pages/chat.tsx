@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Search, 
   MoreVertical, 
@@ -10,7 +10,8 @@ import {
   Check,
   ChevronLeft,
   Pin,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,24 +19,90 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MOCK_CHATS } from "@/lib/data";
 import { cn } from "@/lib/utils";
+
+type ChatPreview = {
+  id: number;
+  name: string;
+  role: string;
+  avatar: string;
+  lastMessage: string;
+  time: string;
+  unread: boolean;
+  pinned: boolean;
+  category: string;
+};
+
+type Message = {
+  id: number;
+  senderUserId: number;
+  senderName: string;
+  text: string;
+  sentAt: string;
+  isOwn: boolean;
+};
 
 type FilterType = "All" | "Unread" | "Pinned" | "Professionals";
 
 export default function ChatPage() {
-  const [selectedChatId, setSelectedChatId] = useState<number | null>(1);
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
+  const [loading, setLoading] = useState(true);
 
-  const filteredChats = MOCK_CHATS.filter(chat => {
+  useEffect(() => {
+    async function loadChats() {
+      try {
+        const res = await fetch("/api/chats", { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setChats(data);
+          if (data.length > 0) setSelectedChatId(data[0].id);
+        }
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
+    }
+    loadChats();
+  }, []);
+
+  const loadMessages = useCallback(async (chatId: number) => {
+    try {
+      const res = await fetch(`/api/chats/${chatId}/messages`, { credentials: "include" });
+      if (res.ok) setMessages(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (selectedChatId) loadMessages(selectedChatId);
+  }, [selectedChatId, loadMessages]);
+
+  async function sendMessage() {
+    if (!messageInput.trim() || !selectedChatId) return;
+    try {
+      const res = await fetch(`/api/chats/${selectedChatId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ messageText: messageInput }),
+      });
+      if (res.ok) {
+        const msg = await res.json();
+        setMessages((prev) => [...prev, msg]);
+        setMessageInput("");
+      }
+    } catch { /* ignore */ }
+  }
+
+  const filteredChats = chats.filter(chat => {
     if (activeFilter === "Unread") return chat.unread;
     if (activeFilter === "Pinned") return chat.pinned;
     if (activeFilter === "Professionals") return chat.role !== "Buyer";
     return true;
   });
 
-  const selectedChat = MOCK_CHATS.find(c => c.id === selectedChatId) || MOCK_CHATS[0];
+  const selectedChat = chats.find(c => c.id === selectedChatId) ?? chats[0];
 
   const filters: FilterType[] = ["All", "Unread", "Pinned", "Professionals"];
 
@@ -74,7 +141,7 @@ export default function ChatPage() {
                 )}
               >
                 {filter}
-                {filter === "Unread" && MOCK_CHATS.some(c => c.unread) && (
+                {filter === "Unread" && chats.some(c => c.unread) && (
                   <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                 )}
               </Button>
@@ -157,9 +224,10 @@ export default function ChatPage() {
             <Button variant="ghost" size="icon" className="md:hidden -ml-2 rounded-full" onClick={() => setSelectedChatId(null)}>
               <ChevronLeft className="h-6 w-6" />
             </Button>
+            {selectedChat && (
+            <>
             <div className="relative">
               <Avatar className="h-11 w-11 border-2 border-background shadow-sm ring-1 ring-border/50">
-                <AvatarImage src={selectedChat.avatar} />
                 <AvatarFallback className="font-bold">{selectedChat.name[0]}</AvatarFallback>
               </Avatar>
               <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background shadow-sm" />
@@ -171,6 +239,8 @@ export default function ChatPage() {
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Now &bull; {selectedChat.role}</p>
               </div>
             </div>
+            </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all">
@@ -188,44 +258,46 @@ export default function ChatPage() {
 
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-6 pt-6">
-          <div className="space-y-8 max-w-4xl mx-auto pb-10">
-             <div className="flex justify-center">
-                <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-[0.2em] bg-muted/40 px-4 py-1.5 rounded-full border border-border/30 backdrop-blur-sm">Monday, October 12</span>
-             </div>
-
-             {/* Received Message */}
-             <div className="flex gap-4 group">
-               <Avatar className="h-9 w-9 mt-1 border border-border/50 shadow-sm shrink-0">
-                 <AvatarImage src={selectedChat.avatar} />
-                 <AvatarFallback>{selectedChat.name[0]}</AvatarFallback>
-               </Avatar>
-               <div className="flex flex-col gap-2 max-w-[75%]">
-                 <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
-                   <p className="text-sm leading-relaxed text-foreground/90">{selectedChat.lastMessage}</p>
-                 </div>
-                 <div className="flex items-center gap-2 ml-1">
-                   <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">{selectedChat.time}</span>
-                  <Badge variant="secondary" className="opacity-0 group-hover:opacity-100 transition-opacity p-0 h-auto text-[9px] hover:text-primary border-transparent bg-transparent shadow-none">Reply</Badge>
-                 </div>
-               </div>
-             </div>
-
-             {/* Sent Message (Mock) */}
-             <div className="flex gap-4 flex-row-reverse group">
-               <div className="flex flex-col gap-2 items-end max-w-[75%]">
-                 <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20">
-                   <p className="text-sm leading-relaxed font-medium">I've reviewed the documents you sent over. Everything looks perfect, looking forward to the next steps!</p>
-                 </div>
-                 <div className="flex items-center gap-2 mr-1">
-                  <Badge variant="secondary" className="opacity-0 group-hover:opacity-100 transition-opacity p-0 h-auto text-[9px] hover:text-primary border-transparent bg-transparent shadow-none">Edit</Badge>
-                   <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">10:45 AM</span>
-                   <div className="flex -space-x-1">
-                     <Check className="h-2.5 w-2.5 text-primary" />
-                     <Check className="h-2.5 w-2.5 text-primary" />
+          <div className="space-y-6 max-w-4xl mx-auto pb-10">
+             {messages.length === 0 && (
+               <p className="text-center text-sm text-muted-foreground py-10">No messages yet. Start the conversation!</p>
+             )}
+             {messages.map((msg) => (
+               msg.isOwn ? (
+                 <div key={msg.id} className="flex gap-4 flex-row-reverse group">
+                   <div className="flex flex-col gap-2 items-end max-w-[75%]">
+                     <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20">
+                       <p className="text-sm leading-relaxed font-medium">{msg.text}</p>
+                     </div>
+                     <div className="flex items-center gap-2 mr-1">
+                       <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+                         {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                       </span>
+                       <div className="flex -space-x-1">
+                         <Check className="h-2.5 w-2.5 text-primary" />
+                         <Check className="h-2.5 w-2.5 text-primary" />
+                       </div>
+                     </div>
                    </div>
                  </div>
-               </div>
-             </div>
+               ) : (
+                 <div key={msg.id} className="flex gap-4 group">
+                   <Avatar className="h-9 w-9 mt-1 border border-border/50 shadow-sm shrink-0">
+                     <AvatarFallback>{msg.senderName[0]?.toUpperCase()}</AvatarFallback>
+                   </Avatar>
+                   <div className="flex flex-col gap-2 max-w-[75%]">
+                     <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
+                       <p className="text-sm leading-relaxed text-foreground/90">{msg.text}</p>
+                     </div>
+                     <div className="flex items-center gap-2 ml-1">
+                       <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+                         {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                       </span>
+                     </div>
+                   </div>
+                 </div>
+               )
+             ))}
           </div>
         </ScrollArea>
 
@@ -244,10 +316,10 @@ export default function ChatPage() {
              <div className="flex-1 bg-muted/40 rounded-[28px] border border-border/50 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all flex items-center pr-1.5 overflow-hidden">
                <Input 
                  className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/50 placeholder:font-medium" 
-                 placeholder={`Message ${selectedChat.name.split(' ')[0]}...`}
+                 placeholder={selectedChat ? `Message ${selectedChat.name.split(' ')[0]}...` : "Select a conversation..."}
                  value={messageInput}
                  onChange={(e) => setMessageInput(e.target.value)}
-                 onKeyDown={(e) => e.key === 'Enter' && messageInput && setMessageInput("")}
+                 onKeyDown={(e) => e.key === 'Enter' && messageInput && sendMessage()}
                />
                <Button 
                  size="icon" 
@@ -255,7 +327,7 @@ export default function ChatPage() {
                   "h-10 w-10 rounded-full shrink-0 transition-all duration-300",
                   messageInput ? "bg-primary text-white scale-100 opacity-100 shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground scale-90 opacity-0 pointer-events-none"
                  )}
-                 onClick={() => setMessageInput("")}
+                 onClick={sendMessage}
                >
                  <Send className="h-4 w-4" />
                </Button>

@@ -25,10 +25,13 @@ jobs:
             npm install
             npm run build
 
+            # Run database migrations (idempotent via IF NOT EXISTS)
+            psql "$DATABASE_URL" -f db/schema.sql
+
             sudo rm -rf /usr/share/nginx/homesync/*
             sudo cp -r /home/ec2-user/HomeSync/frontend/dist/* /usr/share/nginx/homesync/
             sudo chown -R nginx:nginx /usr/share/nginx/homesync
             sudo chmod -R 755 /usr/share/nginx/homesync
 
-            pm2 restart homesync-backend
+            pm2 restart ecosystem.config.cjs --env production
             sudo systemctl restart nginx
