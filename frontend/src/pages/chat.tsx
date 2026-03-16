@@ -53,6 +53,10 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = "Chat · HomeSync";
+  }, []);
+
+  useEffect(() => {
     async function loadChats() {
       try {
         const res = await fetch("/api/chats", { credentials: "include" });
@@ -116,7 +120,12 @@ export default function ChatPage() {
         <div className="p-5 space-y-5 border-b shadow-sm bg-background/95 backdrop-blur">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold font-heading">Messages</h1>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label="Start a new message"
+            >
               <Plus className="h-5 w-5" />
             </Button>
           </div>
@@ -162,7 +171,7 @@ export default function ChatPage() {
               >
                 <div className="relative shrink-0">
                   <Avatar className="h-14 w-14 border-2 border-background shadow-sm ring-1 ring-border/50">
-                    <AvatarImage src={chat.avatar} />
+                    <AvatarImage src={chat.avatar} alt={`${chat.name} avatar`} />
                     <AvatarFallback className="bg-primary/5 text-primary font-bold">{chat.name[0]}</AvatarFallback>
                   </Avatar>
                   {chat.unread && (
@@ -221,7 +230,13 @@ export default function ChatPage() {
         {/* Chat Header */}
         <div className="h-20 border-b bg-background/95 backdrop-blur flex items-center justify-between px-6 shrink-0 shadow-sm relative z-10">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden -ml-2 rounded-full" onClick={() => setSelectedChatId(null)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden -ml-2 rounded-full"
+              onClick={() => setSelectedChatId(null)}
+              aria-label="Back to conversations"
+            >
               <ChevronLeft className="h-6 w-6" />
             </Button>
             {selectedChat && (
@@ -243,14 +258,29 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all"
+              aria-label="Start a phone call"
+            >
               <Phone className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all"
+              aria-label="Start a video call"
+            >
               <Video className="h-5 w-5" />
             </Button>
             <Separator orientation="vertical" className="h-6 mx-1 bg-border/40" />
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground rounded-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground rounded-full"
+              aria-label="More options"
+            >
               <MoreVertical className="h-5 w-5" />
             </Button>
           </div>
@@ -270,7 +300,7 @@ export default function ChatPage() {
                        <p className="text-sm leading-relaxed font-medium">{msg.text}</p>
                      </div>
                      <div className="flex items-center gap-2 mr-1">
-                       <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">
                          {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                        </span>
                        <div className="flex -space-x-1">
@@ -290,7 +320,7 @@ export default function ChatPage() {
                        <p className="text-sm leading-relaxed text-foreground/90">{msg.text}</p>
                      </div>
                      <div className="flex items-center gap-2 ml-1">
-                       <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">
                          {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                        </span>
                      </div>
@@ -305,17 +335,27 @@ export default function ChatPage() {
         <div className="p-6 bg-background/80 backdrop-blur-xl border-t shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] relative z-10">
           <div className="max-w-4xl mx-auto flex items-end gap-3">
              <div className="flex items-center gap-1 shrink-0">
-               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+                 aria-label="Attach a file"
+               >
                  <Paperclip className="h-5 w-5" />
                </Button>
-               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+                 aria-label="Add an emoji"
+               >
                  <Smile className="h-5 w-5" />
                </Button>
              </div>
              
              <div className="flex-1 bg-muted/40 rounded-[28px] border border-border/50 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all flex items-center pr-1.5 overflow-hidden">
                <Input 
-                 className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/50 placeholder:font-medium" 
+                className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/70 placeholder:font-medium" 
                  placeholder={selectedChat ? `Message ${selectedChat.name.split(' ')[0]}...` : "Select a conversation..."}
                  value={messageInput}
                  onChange={(e) => setMessageInput(e.target.value)}
@@ -328,6 +368,7 @@ export default function ChatPage() {
                   messageInput ? "bg-primary text-white scale-100 opacity-100 shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground scale-90 opacity-0 pointer-events-none"
                  )}
                  onClick={sendMessage}
+                 aria-label="Send message"
                >
                  <Send className="h-4 w-4" />
                </Button>

@@ -51,10 +51,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
+            aria-label="HomeSync home"
           >
             <img
               src="/logo.png"
-              alt="HomeSync"
+              alt=""
               className="h-9 md:h-10 w-auto object-contain"
             />
             <span className="font-heading font-bold text-xl text-primary tracking-tight hidden sm:block">
@@ -124,7 +125,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <div className="flex items-center gap-2 mb-6">
                     <img
                       src="/logo.png"
-                      alt="HomeSync"
+                      alt=""
                       className="h-8 w-auto"
                     />
                     <span className="font-heading font-bold text-xl text-primary">

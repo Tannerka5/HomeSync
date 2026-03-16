@@ -53,6 +53,10 @@ export default function BoardPage() {
   const [taskMessage, setTaskMessage] = useState<string>("");
 
   useEffect(() => {
+    document.title = "Board · HomeSync";
+  }, []);
+
+  useEffect(() => {
     async function loadItems() {
       try {
         const response = await fetch("/api/board/items", { credentials: "include" });
@@ -217,9 +221,10 @@ export default function BoardPage() {
                         <div className="absolute bottom-3 left-3 text-white">
                           <p className="font-medium text-sm drop-shadow-md">{item.title}</p>
                         </div>
-                        <div 
+                        <div
                           {...provided.dragHandleProps}
                           className="absolute top-2 right-2 p-1.5 bg-black/20 backdrop-blur-md rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                          aria-label={`Reorder vision item: ${item.title}`}
                         >
                           <GripVertical className="h-4 w-4" />
                         </div>
@@ -251,7 +256,12 @@ export default function BoardPage() {
               <Card key={note.id} className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-yellow-400 group rounded-2xl">
                 <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
                   <CardTitle className="text-base font-bold leading-tight group-hover:text-primary transition-colors">{note.title}</CardTitle>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 text-muted-foreground">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 -mr-2 text-muted-foreground"
+                    aria-label="Note options"
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </CardHeader>
@@ -334,7 +344,12 @@ export default function BoardPage() {
                      <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{doc.title}</p>
                      <p className="text-xs text-muted-foreground mt-0.5">{doc.date}</p>
                    </div>
-                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-full">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-full"
+                    aria-label="Open document"
+                  >
                      <ExternalLink className="h-4 w-4" />
                    </Button>
                  </CardContent>

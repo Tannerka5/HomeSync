@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -66,8 +66,12 @@ export default function SignupPage() {
     }
   }
 
+  useEffect(() => {
+    document.title = "Sign up · HomeSync";
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-background relative overflow-hidden">
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-background relative overflow-hidden">
       <div
         className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/8 blur-3xl"
         aria-hidden="true"
@@ -200,6 +204,6 @@ export default function SignupPage() {
           </p>
         </CardFooter>
       </Card>
-    </div>
+    </main>
   );
 }
