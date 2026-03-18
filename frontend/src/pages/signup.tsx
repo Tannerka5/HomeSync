@@ -26,8 +26,16 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const signupSchema = z
   .object({
-    firstName: z.string().trim().min(1, "First name is required").max(100, "First name is too long"),
-    lastName: z.string().trim().min(1, "Last name is required").max(100, "Last name is too long"),
+    firstName: z
+      .string()
+      .trim()
+      .min(1, "First name is required")
+      .max(100, "First name is too long"),
+    lastName: z
+      .string()
+      .trim()
+      .min(1, "Last name is required")
+      .max(100, "Last name is too long"),
     email: z.string().email("Please enter a valid email"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),

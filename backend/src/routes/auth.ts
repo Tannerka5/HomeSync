@@ -32,11 +32,14 @@ router.post("/signup", async (req, res) => {
   if (!pool) return res.status(503).json({ message: "Database unavailable." });
 
   try {
-    const existing = await pool.query("SELECT user_id FROM app_user WHERE email = $1", [
-      email,
-    ]);
+    const existing = await pool.query(
+      "SELECT user_id FROM app_user WHERE email = $1",
+      [email],
+    );
     if (existing.rowCount && existing.rowCount > 0) {
-      return res.status(409).json({ message: "An account with that email already exists." });
+      return res
+        .status(409)
+        .json({ message: "An account with that email already exists." });
     }
 
     const passwordHash = await hashPassword(password);
@@ -47,13 +50,22 @@ router.post("/signup", async (req, res) => {
     const user = result.rows[0];
 
     if (userType === "buyer") {
-      await pool.query("INSERT INTO buyer (user_id) VALUES ($1)", [user.user_id]);
+      await pool.query("INSERT INTO buyer (user_id) VALUES ($1)", [
+        user.user_id,
+      ]);
     } else if (userType === "realtor") {
-      await pool.query("INSERT INTO realtor (user_id) VALUES ($1)", [user.user_id]);
+      await pool.query("INSERT INTO realtor (user_id) VALUES ($1)", [
+        user.user_id,
+      ]);
     }
 
     const ip = req.ip ?? req.headers["x-forwarded-for"] ?? "unknown";
-    console.info("[auth] Signup", { userId: user.user_id, email, userType, ip });
+    console.info("[auth] Signup", {
+      userId: user.user_id,
+      email,
+      userType,
+      ip,
+    });
 
     const token = signToken({
       userId: user.user_id,
@@ -73,7 +85,9 @@ router.post("/signup", async (req, res) => {
     });
   } catch (error) {
     console.error("[auth] Signup error:", error);
-    return res.status(500).json({ message: "Signup failed. Please try again." });
+    return res
+      .status(500)
+      .json({ message: "Signup failed. Please try again." });
   }
 });
 
@@ -97,7 +111,11 @@ router.post("/login", async (req, res) => {
     const user = result.rows[0];
 
     if (!user || !(await verifyPassword(password, user.password_hash))) {
-      console.warn("[auth] Login failed", { email, ip, reason: "invalid credentials" });
+      console.warn("[auth] Login failed", {
+        email,
+        ip,
+        reason: "invalid credentials",
+      });
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -140,7 +158,8 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/me", async (req, res) => {
-  const cookies = (req as unknown as { cookies: Record<string, string> }).cookies;
+  const cookies = (req as unknown as { cookies: Record<string, string> })
+    .cookies;
   const token = cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ message: "Not authenticated." });
 
@@ -159,7 +178,9 @@ router.get("/me", async (req, res) => {
       const row = result.rows[0];
       if (!row || row.token_version !== payload.tokenVersion) {
         res.clearCookie(COOKIE_NAME);
-        return res.status(401).json({ message: "Session revoked. Please log in again." });
+        return res
+          .status(401)
+          .json({ message: "Session revoked. Please log in again." });
       }
 
       if (!firstName || !lastName) {

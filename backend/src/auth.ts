@@ -10,7 +10,9 @@ if (!envSecret && process.env.NODE_ENV === "production") {
   throw new Error("JWT_SECRET environment variable must be set in production");
 }
 if (!envSecret) {
-  console.warn("[auth] JWT_SECRET not set — using insecure default for development only");
+  console.warn(
+    "[auth] JWT_SECRET not set — using insecure default for development only",
+  );
 }
 const JWT_SECRET = envSecret ?? "dev-secret-change-in-production";
 
@@ -28,10 +30,7 @@ export const hashPassword = (password: string) => bcrypt.hash(password, 12);
 export const verifyPassword = (password: string, hash: string) =>
   bcrypt.compare(password, hash);
 
-export function signToken(
-  payload: JwtPayload,
-  rememberMe = true,
-): string {
+export function signToken(payload: JwtPayload, rememberMe = true): string {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: rememberMe ? "7d" : "1d",
   });
