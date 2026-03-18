@@ -28,7 +28,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const displayName = user?.email.split("@")[0] ?? "";
+  const displayName = user
+    ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
+      user.email.split("@")[0]
+    : "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   async function handleLogout() {
@@ -100,9 +103,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             ) : (
               <Link href="/login">
-                <Button size="sm">
-                  Sign in
-                </Button>
+                <Button size="sm">Sign in</Button>
               </Link>
             )}
           </nav>
@@ -123,11 +124,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="flex flex-col h-full">
                 <div className="p-6 pb-2">
                   <div className="flex items-center gap-2 mb-6">
-                    <img
-                      src="/logo.png"
-                      alt=""
-                      className="h-8 w-auto"
-                    />
+                    <img src="/logo.png" alt="" className="h-8 w-auto" />
                     <span className="font-heading font-bold text-xl text-primary">
                       HomeSync
                     </span>

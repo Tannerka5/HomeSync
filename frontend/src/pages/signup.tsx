@@ -26,6 +26,16 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const signupSchema = z
   .object({
+    firstName: z
+      .string()
+      .trim()
+      .min(1, "First name is required")
+      .max(100, "First name is too long"),
+    lastName: z
+      .string()
+      .trim()
+      .min(1, "Last name is required")
+      .max(100, "Last name is too long"),
     email: z.string().email("Please enter a valid email"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
@@ -56,7 +66,13 @@ export default function SignupPage() {
   async function onSubmit(data: SignupForm) {
     setError(null);
     try {
-      await signup(data.email, data.password, data.userType);
+      await signup(
+        data.firstName,
+        data.lastName,
+        data.email,
+        data.password,
+        data.userType,
+      );
       navigate("/");
     } catch (e) {
       const msg =
@@ -105,6 +121,36 @@ export default function SignupPage() {
                 {error}
               </div>
             )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  placeholder="Alex"
+                  {...register("firstName")}
+                />
+                {errors.firstName && (
+                  <p className="text-xs text-destructive">
+                    {errors.firstName.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Johnson"
+                  {...register("lastName")}
+                />
+                {errors.lastName && (
+                  <p className="text-xs text-destructive">
+                    {errors.lastName.message}
+                  </p>
+                )}
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

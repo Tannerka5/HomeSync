@@ -3,6 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS app_user (
   user_id SERIAL PRIMARY KEY,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   user_type VARCHAR(50) NOT NULL CHECK (user_type IN ('buyer', 'realtor', 'collaborator')),
@@ -11,6 +13,10 @@ CREATE TABLE IF NOT EXISTS app_user (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+ALTER TABLE IF EXISTS app_user
+  ADD COLUMN IF NOT EXISTS first_name VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS buyer (
   buyer_id SERIAL PRIMARY KEY,
