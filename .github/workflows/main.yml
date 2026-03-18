@@ -39,5 +39,5 @@ jobs:
             sudo chown -R nginx:nginx /usr/share/nginx/homesync
             sudo chmod -R 755 /usr/share/nginx/homesync
 
-            pm2 restart ecosystem.config.cjs --env production --update-env
+            pm2 startOrReload ecosystem.config.cjs --env production --update-env
             sudo systemctl restart nginx
