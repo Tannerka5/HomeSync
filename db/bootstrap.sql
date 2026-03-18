@@ -1,8 +1,10 @@
 -- HomeSync non-destructive bootstrap data for deployed environments.
 -- Safe to run repeatedly. Inserts demo records only when the database is empty.
 
-INSERT INTO app_user (email, password_hash, user_type, is_active)
+INSERT INTO app_user (first_name, last_name, email, password_hash, user_type, is_active)
 SELECT
+  'Alex',
+  'Buyer',
   'alex.buyer@homesync.local',
   '$2b$12$faiFjYvD3kRBUxYjI3W2y.ka7tQcJ9q39lJ4Z2JDtSIBs6wSPZWaS',
   'buyer',
@@ -11,8 +13,10 @@ WHERE NOT EXISTS (
   SELECT 1 FROM app_user WHERE email = 'alex.buyer@homesync.local'
 );
 
-INSERT INTO app_user (email, password_hash, user_type, is_active)
+INSERT INTO app_user (first_name, last_name, email, password_hash, user_type, is_active)
 SELECT
+  'Sarah',
+  'Realtor',
   'sarah.realtor@homesync.local',
   '$2b$12$faiFjYvD3kRBUxYjI3W2y.ka7tQcJ9q39lJ4Z2JDtSIBs6wSPZWaS',
   'realtor',
@@ -21,8 +25,10 @@ WHERE NOT EXISTS (
   SELECT 1 FROM app_user WHERE email = 'sarah.realtor@homesync.local'
 );
 
-INSERT INTO app_user (email, password_hash, user_type, is_active)
+INSERT INTO app_user (first_name, last_name, email, password_hash, user_type, is_active)
 SELECT
+  'Michael',
+  'Lender',
   'michael.lender@homesync.local',
   '$2b$12$faiFjYvD3kRBUxYjI3W2y.ka7tQcJ9q39lJ4Z2JDtSIBs6wSPZWaS',
   'collaborator',

@@ -17,6 +17,8 @@ const JWT_SECRET = envSecret ?? "dev-secret-change-in-production";
 export type JwtPayload = {
   userId: number;
   email: string;
+  firstName: string;
+  lastName: string;
   userType: string;
   tokenVersion: number;
 };

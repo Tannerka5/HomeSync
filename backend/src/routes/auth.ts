@@ -26,7 +26,7 @@ router.post("/signup", async (req, res) => {
     const msg = parsed.error.errors.map((e) => e.message).join(", ");
     return res.status(400).json({ message: msg });
   }
-  const { email, password, userType } = parsed.data;
+  const { firstName, lastName, email, password, userType } = parsed.data;
 
   const pool = getPool();
   if (!pool) return res.status(503).json({ message: "Database unavailable." });
@@ -41,8 +41,8 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await hashPassword(password);
     const result = await pool.query(
-      "INSERT INTO app_user (email, password_hash, user_type) VALUES ($1, $2, $3) RETURNING user_id, email, user_type, token_version",
-      [email, passwordHash, userType],
+      "INSERT INTO app_user (first_name, last_name, email, password_hash, user_type) VALUES ($1, $2, $3, $4, $5) RETURNING user_id, first_name, last_name, email, user_type, token_version",
+      [firstName, lastName, email, passwordHash, userType],
     );
     const user = result.rows[0];
 
@@ -58,12 +58,16 @@ router.post("/signup", async (req, res) => {
     const token = signToken({
       userId: user.user_id,
       email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
       userType: user.user_type,
       tokenVersion: user.token_version,
     });
     res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
     return res.status(201).json({
       userId: user.user_id,
+      firstName: user.first_name,
+      lastName: user.last_name,
       email: user.email,
       userType: user.user_type,
     });
@@ -87,7 +91,7 @@ router.post("/login", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "SELECT user_id, email, password_hash, user_type, token_version FROM app_user WHERE email = $1 AND is_active = true",
+      "SELECT user_id, first_name, last_name, email, password_hash, user_type, token_version FROM app_user WHERE email = $1 AND is_active = true",
       [email],
     );
     const user = result.rows[0];
@@ -103,6 +107,8 @@ router.post("/login", async (req, res) => {
       {
         userId: user.user_id,
         email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
         userType: user.user_type,
         tokenVersion: user.token_version,
       },
@@ -113,7 +119,13 @@ router.post("/login", async (req, res) => {
       ? COOKIE_OPTIONS
       : { ...COOKIE_OPTIONS, maxAge: undefined };
     res.cookie(COOKIE_NAME, token, cookieOpts);
-    return res.json({ userId: user.user_id, email: user.email, userType: user.user_type });
+    return res.json({
+      userId: user.user_id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      userType: user.user_type,
+    });
   } catch (error) {
     console.error("[auth] Login error:", error);
     return res.status(500).json({ message: "Login failed. Please try again." });
@@ -136,16 +148,23 @@ router.get("/me", async (req, res) => {
   if (!payload) return res.status(401).json({ message: "Invalid session." });
 
   const pool = getPool();
+  let firstName = payload.firstName;
+  let lastName = payload.lastName;
   if (pool && payload.tokenVersion !== undefined) {
     try {
       const result = await pool.query(
-        "SELECT token_version FROM app_user WHERE user_id = $1",
+        "SELECT token_version, first_name, last_name FROM app_user WHERE user_id = $1",
         [payload.userId],
       );
       const row = result.rows[0];
       if (!row || row.token_version !== payload.tokenVersion) {
         res.clearCookie(COOKIE_NAME);
         return res.status(401).json({ message: "Session revoked. Please log in again." });
+      }
+
+      if (!firstName || !lastName) {
+        firstName = row.first_name;
+        lastName = row.last_name;
       }
     } catch {
       return res.status(500).json({ message: "Internal server error." });
@@ -154,6 +173,8 @@ router.get("/me", async (req, res) => {
 
   return res.json({
     userId: payload.userId,
+    firstName,
+    lastName,
     email: payload.email,
     userType: payload.userType,
   });

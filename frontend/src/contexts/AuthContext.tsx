@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 type User = {
   userId: number;
+  firstName: string;
+  lastName: string;
   email: string;
   userType: string;
 };
@@ -10,7 +12,7 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  signup: (email: string, password: string, userType: string) => Promise<void>;
+  signup: (firstName: string, lastName: string, email: string, password: string, userType: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -46,11 +48,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(await res.json());
   }
 
-  async function signup(email: string, password: string, userType: string) {
+  async function signup(
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    userType: string,
+  ) {
     const res = await authFetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, userType }),
+      body: JSON.stringify({ firstName, lastName, email, password, userType }),
     });
     setUser(await res.json());
   }

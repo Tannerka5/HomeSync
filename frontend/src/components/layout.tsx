@@ -28,7 +28,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const displayName = user?.email.split("@")[0] ?? "";
+  const displayName = user
+    ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email.split("@")[0]
+    : "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   async function handleLogout() {
