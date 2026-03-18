@@ -11,6 +11,7 @@ import HomePage from "@/pages/home";
 import ListingsPage from "@/pages/listings";
 import BoardPage from "@/pages/board";
 import ChatPage from "@/pages/chat";
+import ProfilePage from "@/pages/profile";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/signup";
 import NotFound from "@/pages/not-found";
@@ -48,6 +49,13 @@ function Router() {
         <ProtectedRoute>
           <Layout>
             <ChatPage />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/profile">
+        <ProtectedRoute>
+          <Layout>
+            <ProfilePage />
           </Layout>
         </ProtectedRoute>
       </Route>

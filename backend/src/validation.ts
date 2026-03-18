@@ -25,6 +25,25 @@ export const loginSchema = z.object({
   rememberMe: z.boolean().optional().default(false),
 });
 
+export const updateProfileSchema = z
+  .object({
+    firstName: z.string().trim().min(1, "First name is required").max(100).optional(),
+    lastName: z.string().trim().min(1, "Last name is required").max(100).optional(),
+    email: z
+      .string()
+      .email("Invalid email address")
+      .max(255)
+      .transform((v) => v.toLowerCase())
+      .optional(),
+    currentPassword: z.string().min(1, "Current password is required").max(128).optional(),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(128)
+      .optional(),
+  })
+  .strict();
+
 export const createListingSchema = z.object({
   addressLine1: z.string().min(1).max(255),
   city: z.string().min(1).max(120),

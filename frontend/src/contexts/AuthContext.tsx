@@ -8,6 +8,14 @@ type User = {
   userType: string;
 };
 
+type UpdateProfileInput = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+};
+
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
@@ -23,6 +31,7 @@ type AuthContextType = {
     password: string,
     userType: string,
   ) => Promise<void>;
+  updateProfile: (input: UpdateProfileInput) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -81,8 +90,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }
 
+  async function updateProfile(input: UpdateProfileInput) {
+    const res = await authFetch("/api/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await res.json();
+    setUser({
+      userId: payload.userId,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email: payload.email,
+      userType: payload.userType,
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, signup, updateProfile, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
