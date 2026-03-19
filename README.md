@@ -144,6 +144,7 @@ git --version
 
    ```bash
    psql -U postgres -d homesync -f db/schema.sql
+   bash db/migrate.sh "postgresql://postgres:<your_password>@localhost:5432/homesync"
    psql -U postgres -d homesync -f db/seed.sql
    ```
 
@@ -245,6 +246,7 @@ PORT=4000
 ```
 
 The deploy workflow writes this file on each deployment from GitHub Actions secrets. Manual edits are allowed, but they may be overwritten on the next deploy.
+Deploys now run `db/schema.sql` and then `db/migrate.sh` before starting PM2.
 
 Useful PM2 verification commands on EC2:
 

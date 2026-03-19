@@ -55,6 +55,7 @@ jobs:
 
             echo "Running database setup..."
             psql "$DATABASE_URL" -f db/schema.sql
+            bash db/migrate.sh "$DATABASE_URL"
             psql "$DATABASE_URL" -f db/bootstrap.sql
 
             echo "Deploying frontend to nginx..."
