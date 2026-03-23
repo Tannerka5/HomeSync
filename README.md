@@ -250,6 +250,7 @@ These features are currently implemented and participate in the vertical slice t
   - Fetches listings from the backend (`/api/listings`) and renders responsive listing cards.
   - Each card shows price, address, key stats (beds, baths, square footage), and status badge.
   - Listing details open in a dialog with richer information (description, stats, actions).
+  - Listing dialogs include an "Open in Google Maps" web link
 
 - **Collaboration Board**
 
@@ -261,6 +262,7 @@ These features are currently implemented and participate in the vertical slice t
   - Chat list sidebar that loads conversations from `/api/chats`.
   - Message window that fetches and displays messages for the selected chat from `/api/chats/:id/messages`.
   - Ability to send a message via POST to `/api/chats/:id/messages`, appending it to the current thread.
+  - Listing-share messages include "Open listing" and "Open in Maps" buttons that link out to the provided listing/map URLs.
 
 > **Note:** Some features may not yet fully meet the Definition of Done for accessibility score, production deployment, or all edge cases. Those gaps are expected to be closed in sprints 2 and 3.
 

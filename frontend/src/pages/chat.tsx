@@ -319,7 +319,7 @@ export default function ChatPage() {
                   </div>
                   <p className={cn(
                     "text-xs truncate leading-relaxed",
-                    chat.unread ? "font-bold text-foreground" : "text-muted-foreground/70"
+                    chat.unread ? "font-bold text-foreground" : "text-muted-foreground/90"
                   )}>
                     {chat.lastMessage}
                   </p>
@@ -417,7 +417,7 @@ export default function ChatPage() {
                       {renderMessageBody(msg)}
                      </div>
                      <div className="flex items-center gap-2 mr-1">
-                      <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-muted-foreground/90 uppercase tracking-wider">
                          {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                        </span>
                        <div className="flex -space-x-1">
@@ -436,8 +436,8 @@ export default function ChatPage() {
                      <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300 text-foreground/90">
                       {renderMessageBody(msg)}
                      </div>
-                     <div className="flex items-center gap-2 ml-1">
-                      <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                    <div className="flex items-center gap-2 ml-1">
+                      <span className="text-[9px] font-bold text-muted-foreground/90 uppercase tracking-wider">
                          {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                        </span>
                      </div>
@@ -472,7 +472,7 @@ export default function ChatPage() {
              
              <div className="flex-1 bg-muted/40 rounded-[28px] border border-border/50 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all flex items-center pr-1.5 overflow-hidden">
                <Input 
-                className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/70 placeholder:font-medium" 
+                className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/90 placeholder:font-medium" 
                  placeholder={selectedChat ? `Message ${selectedChat.name.split(' ')[0]}...` : "Select a conversation..."}
                  value={messageInput}
                  onChange={(e) => setMessageInput(e.target.value)}
