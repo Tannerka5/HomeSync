@@ -11,7 +11,9 @@ import {
   ChevronLeft,
   Pin,
   Plus,
-  Loader2
+  Loader2,
+  ExternalLink,
+  MapPin,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -38,11 +40,126 @@ type Message = {
   senderUserId: number;
   senderName: string;
   text: string;
+  messageType?: "text" | "listing_share";
+  payload?: ListingSharePayload | null;
   sentAt: string;
   isOwn: boolean;
 };
 
 type FilterType = "All" | "Unread" | "Pinned" | "Professionals";
+
+type ListingSharePayload = {
+  listingId: number;
+  title: string;
+  price: string;
+  address: string;
+  image?: string;
+  listingUrl: string;
+  mapsUrl: string;
+};
+
+function renderMessageTextWithLinks(text: string) {
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  const lines = text.split("\n");
+
+  return (
+    <>
+      {lines.map((line, lineIndex) => {
+        const parts = line.split(urlPattern);
+        return (
+          <span key={`line-${lineIndex}`}>
+            {parts.map((part, partIndex) => {
+              const isUrl = /^https?:\/\/[^\s]+$/.test(part);
+              if (isUrl) {
+                return (
+                  <a
+                    key={`part-${lineIndex}-${partIndex}`}
+                    href={part}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:opacity-80 break-all"
+                  >
+                    {part}
+                  </a>
+                );
+              }
+              return <span key={`part-${lineIndex}-${partIndex}`}>{part}</span>;
+            })}
+            {lineIndex < lines.length - 1 ? <br /> : null}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function isListingSharePayload(value: unknown): value is ListingSharePayload {
+  if (!value || typeof value !== "object") return false;
+  const p = value as Partial<ListingSharePayload>;
+  return (
+    typeof p.listingId === "number" &&
+    typeof p.title === "string" &&
+    typeof p.price === "string" &&
+    typeof p.address === "string" &&
+    typeof p.listingUrl === "string" &&
+    typeof p.mapsUrl === "string"
+  );
+}
+
+function renderMessageBody(msg: Message) {
+  const payload = isListingSharePayload(msg.payload) ? msg.payload : null;
+  const isListingShare = msg.messageType === "listing_share" && payload !== null;
+
+  if (!isListingShare) {
+    return (
+      <p className="text-sm leading-relaxed font-medium">
+        {renderMessageTextWithLinks(msg.text)}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 min-w-[240px]">
+      <div className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-wider opacity-80">
+          Listing share
+        </p>
+        <p className="text-sm font-bold leading-snug">{payload.title}</p>
+      </div>
+      {payload.image ? (
+        <img
+          src={payload.image}
+          alt={payload.title}
+          className="w-full h-36 object-cover rounded-xl border border-border/30"
+        />
+      ) : null}
+      <div className="space-y-1">
+        <p className="text-base font-bold">{payload.price}</p>
+        <p className="text-xs opacity-80">{payload.address}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={payload.listingUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full border border-current/20 px-3 py-1.5 text-xs font-semibold hover:opacity-80"
+        >
+          Open listing
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+        <a
+          href={payload.mapsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full border border-current/20 px-3 py-1.5 text-xs font-semibold hover:opacity-80"
+        >
+          Open in Maps
+          <MapPin className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </div>
+  );
+}
 
 export default function ChatPage() {
   const [chats, setChats] = useState<ChatPreview[]>([]);
@@ -297,7 +414,7 @@ export default function ChatPage() {
                  <div key={msg.id} className="flex gap-4 flex-row-reverse group">
                    <div className="flex flex-col gap-2 items-end max-w-[75%]">
                      <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20">
-                       <p className="text-sm leading-relaxed font-medium">{msg.text}</p>
+                      {renderMessageBody(msg)}
                      </div>
                      <div className="flex items-center gap-2 mr-1">
                       <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">
@@ -316,8 +433,8 @@ export default function ChatPage() {
                      <AvatarFallback>{msg.senderName[0]?.toUpperCase()}</AvatarFallback>
                    </Avatar>
                    <div className="flex flex-col gap-2 max-w-[75%]">
-                     <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
-                       <p className="text-sm leading-relaxed text-foreground/90">{msg.text}</p>
+                     <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300 text-foreground/90">
+                      {renderMessageBody(msg)}
                      </div>
                      <div className="flex items-center gap-2 ml-1">
                       <span className="text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider">

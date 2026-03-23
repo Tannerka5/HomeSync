@@ -70,7 +70,8 @@ router.get("/:id/messages", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT m.message_id, m.sender_user_id, m.message_text, m.sent_at,
-              u.email AS sender_email, u.user_type AS sender_type
+              m.message_type, m.message_payload,
+              u.email AS sender_email
        FROM message m
        JOIN app_user u ON u.user_id = m.sender_user_id
        WHERE m.conversation_id = $1 AND m.is_deleted = false
@@ -84,6 +85,8 @@ router.get("/:id/messages", async (req, res) => {
       senderUserId: r.sender_user_id,
       senderName: r.sender_email.split("@")[0],
       text: r.message_text,
+      messageType: r.message_type ?? "text",
+      payload: r.message_payload ?? null,
       sentAt: r.sent_at,
       isOwn: r.sender_user_id === req.user!.userId,
     }));
@@ -111,13 +114,22 @@ router.post("/:id/messages", async (req, res) => {
   if (!pool) return res.status(503).json({ message: "Database unavailable." });
 
   const userId = req.user!.userId;
+  const messageType =
+    parsed.data.messageType === "listing_share" ? "listing_share" : "text";
+  const payload =
+    parsed.data.messageType === "listing_share" ? parsed.data.payload : null;
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO message (conversation_id, sender_user_id, message_text)
-       VALUES ($1, $2, $3)
-       RETURNING message_id, message_text, sent_at`,
-      [conversationId, userId, parsed.data.messageText],
+      `WITH inserted AS (
+         INSERT INTO message (conversation_id, sender_user_id, message_text, message_type, message_payload)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING message_id, sender_user_id, message_text, message_type, message_payload, sent_at
+       )
+       SELECT i.message_id, i.sender_user_id, i.message_text, i.message_type, i.message_payload, i.sent_at, u.email AS sender_email
+       FROM inserted i
+       JOIN app_user u ON u.user_id = i.sender_user_id`,
+      [conversationId, userId, parsed.data.messageText, messageType, payload],
     );
 
     await pool.query(
@@ -129,7 +141,10 @@ router.post("/:id/messages", async (req, res) => {
     return res.status(201).json({
       id: m.message_id,
       senderUserId: userId,
+      senderName: m.sender_email.split("@")[0],
       text: m.message_text,
+      messageType: m.message_type ?? "text",
+      payload: m.message_payload ?? null,
       sentAt: m.sent_at,
       isOwn: true,
     });

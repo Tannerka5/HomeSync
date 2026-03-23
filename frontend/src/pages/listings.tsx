@@ -24,17 +24,32 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  ListingChatAction,
+  ListingHeartAction,
+} from "@/components/listing-actions";
 
 type Listing = {
   id: number;
   title: string;
   price: string;
   address: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  zip: string;
   beds: number;
   baths: number;
   sqft: number;
@@ -44,9 +59,54 @@ type Listing = {
   status: string;
 };
 
+type ChatPreview = {
+  id: number;
+  name: string;
+  role: string;
+  avatar: string;
+  lastMessage: string;
+  time: string;
+  unread: boolean;
+  pinned: boolean;
+  category: string;
+};
+
 type SortOption = "recommended" | "price-asc" | "price-desc" | "newest";
 
 type StatusFilter = "all" | "active" | "pending" | "new";
+
+function buildGoogleMapsUrl(listing: Listing): string {
+  const address = [
+    listing.addressLine1,
+    listing.city,
+    listing.state,
+    listing.zip,
+  ].filter(Boolean).join(", ");
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+function buildListingCandidateBodyText(listing: Listing): string {
+  const fullAddress = [
+    listing.addressLine1,
+    listing.city,
+    listing.state,
+    listing.zip,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const mapsUrl = buildGoogleMapsUrl(listing);
+  return JSON.stringify({
+    address: fullAddress,
+    mapsUrl,
+    price: listing.price,
+    beds: listing.beds,
+    baths: listing.baths,
+    sqft: listing.sqft,
+    image: listing.image,
+  });
+}
 
 export default function ListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -63,9 +123,41 @@ export default function ListingsPage() {
   const [activeImageIndex, setActiveImageIndex] = useState<
     Record<number, number>
   >({});
+  const [openListingId, setOpenListingId] = useState<number | null>(null);
+  const [pendingDeepLinkListingId, setPendingDeepLinkListingId] = useState<number | null>(null);
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [chatListingId, setChatListingId] = useState<number | null>(null);
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(false);
+  const [chatsError, setChatsError] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatSendError, setChatSendError] = useState<string | null>(null);
+  const [hasLoadedChatsForDialogOpen, setHasLoadedChatsForDialogOpen] = useState(false);
+  const [boardAddLoadingId, setBoardAddLoadingId] = useState<number | null>(null);
+  const [boardAddMessage, setBoardAddMessage] = useState<{
+    listingId: number;
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [boardCandidatesLoading, setBoardCandidatesLoading] = useState(false);
+  const [boardCandidatesError, setBoardCandidatesError] = useState<string | null>(null);
+  const [collabItemIdByListingId, setCollabItemIdByListingId] = useState<
+    Record<number, number>
+  >({});
+  const [boardHeartLoadingId, setBoardHeartLoadingId] = useState<number | null>(null);
 
   useEffect(() => {
     document.title = "Listings · HomeSync";
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const listingIdParam = params.get("listingId");
+    const parsed = listingIdParam ? Number(listingIdParam) : NaN;
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setPendingDeepLinkListingId(parsed);
+    }
   }, []);
 
   useEffect(() => {
@@ -100,6 +192,103 @@ export default function ListingsPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (listings.length === 0) return;
+    let cancelled = false;
+
+    async function loadCandidates() {
+      setBoardCandidatesLoading(true);
+      setBoardCandidatesError(null);
+      try {
+        const res = await fetch("/api/board/items?type=listing_candidate", {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (!cancelled) {
+            setBoardCandidatesError(body.message ?? "Failed to load board items.");
+          }
+          return;
+        }
+
+        const data = (await res.json()) as Array<{
+          listingId?: number;
+          numericId?: number;
+          type?: string;
+        }>;
+
+        if (cancelled) return;
+        const next: Record<number, number> = {};
+        for (const item of data) {
+          if (
+            item.type === "listing_candidate" &&
+            typeof item.listingId === "number" &&
+            typeof item.numericId === "number"
+          ) {
+            next[item.listingId] = item.numericId;
+          }
+        }
+        setCollabItemIdByListingId(next);
+      } catch {
+        if (!cancelled) setBoardCandidatesError("Could not reach backend.");
+      } finally {
+        if (!cancelled) setBoardCandidatesLoading(false);
+      }
+    }
+
+    loadCandidates();
+    return () => {
+      cancelled = true;
+    };
+  }, [listings.length]);
+
+  useEffect(() => {
+    if (pendingDeepLinkListingId === null) return;
+    if (listings.length === 0) return;
+
+    const target = listings.find((l) => l.id === pendingDeepLinkListingId);
+    if (!target) return;
+
+    setOpenListingId(target.id);
+    setPendingDeepLinkListingId(null);
+  }, [pendingDeepLinkListingId, listings]);
+
+  useEffect(() => {
+    if (!chatDialogOpen) return;
+    if (hasLoadedChatsForDialogOpen) return;
+
+    let cancelled = false;
+    async function loadChats() {
+      setChatsLoading(true);
+      setChatsError(null);
+      try {
+        const res = await fetch("/api/chats", { credentials: "include" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (!cancelled) {
+            setChatsError(body.message ?? "Failed to load chats.");
+          }
+          return;
+        }
+
+        const data: ChatPreview[] = await res.json();
+        if (cancelled) return;
+        setChats(data);
+        setSelectedChatId(data.length > 0 ? data[0].id : null);
+        setHasLoadedChatsForDialogOpen(true);
+      } catch {
+        if (!cancelled) setChatsError("Could not reach backend.");
+      } finally {
+        if (!cancelled) setChatsLoading(false);
+      }
+    }
+
+    loadChats();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatDialogOpen, hasLoadedChatsForDialogOpen]);
 
   const displayedListings = useMemo(() => {
     const withNumericPrice = listings.map((l) => {
@@ -167,6 +356,225 @@ export default function ListingsPage() {
   const handleThumbnailClick = (listingId: number, index: number) => {
     setActiveImageIndex((prev) => ({ ...prev, [listingId]: index }));
   };
+
+  const chatListing =
+    chatListingId !== null
+      ? listings.find((l) => l.id === chatListingId) ?? null
+      : null;
+
+  function openChatDialogForListing(listingId: number) {
+    setChatListingId(listingId);
+    setChatDialogOpen(true);
+    setHasLoadedChatsForDialogOpen(false);
+    setChats([]);
+    setChatsError(null);
+    setChatSendError(null);
+    setChatSending(false);
+    setSelectedChatId(null);
+  }
+
+  async function sendListingToChat() {
+    if (!chatListing) return;
+    if (!selectedChatId) return;
+
+    setChatSending(true);
+    setChatSendError(null);
+    try {
+      const fullAddress = [
+        chatListing.addressLine1,
+        chatListing.city,
+        chatListing.state,
+        chatListing.zip,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const mapsUrl = buildGoogleMapsUrl(chatListing);
+      const listingUrl = `${window.location.origin}/listings?listingId=${chatListing.id}`;
+      const messageText = `Shared a listing: ${chatListing.title} (${chatListing.price})`;
+
+      const res = await fetch(`/api/chats/${selectedChatId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          messageText,
+          messageType: "listing_share",
+          payload: {
+            listingId: chatListing.id,
+            title: chatListing.title,
+            price: chatListing.price,
+            address: fullAddress,
+            image: chatListing.image,
+            listingUrl,
+            mapsUrl,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setChatSendError(body.message ?? "Unable to send message.");
+        return;
+      }
+
+      setChatDialogOpen(false);
+      setChatListingId(null);
+    } catch {
+      setChatSendError("Could not reach backend.");
+    } finally {
+      setChatSending(false);
+    }
+  }
+
+  function retryLoadChats() {
+    setHasLoadedChatsForDialogOpen(false);
+    setChats([]);
+    setSelectedChatId(null);
+    setChatsError(null);
+  }
+
+  async function addListingToBoard(listing: Listing) {
+    setBoardAddLoadingId(listing.id);
+    setBoardAddMessage(null);
+
+    try {
+      const fullAddress = [
+        listing.addressLine1,
+        listing.city,
+        listing.state,
+        listing.zip,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const mapsUrl = buildGoogleMapsUrl(listing);
+      const bodyText = JSON.stringify({
+        address: fullAddress,
+        mapsUrl,
+        price: listing.price,
+        beds: listing.beds,
+        baths: listing.baths,
+        sqft: listing.sqft,
+        image: listing.image,
+      });
+
+      const res = await fetch("/api/board/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          listingId: listing.id,
+          itemType: "listing_candidate",
+          title: listing.title,
+          bodyText,
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message ?? "Unable to add to board.");
+      }
+
+      const payload = await res.json().catch(() => ({}));
+      if (typeof payload.numericId === "number") {
+        setCollabItemIdByListingId((prev) => ({
+          ...prev,
+          [listing.id]: payload.numericId,
+        }));
+      }
+
+      setBoardAddMessage({
+        listingId: listing.id,
+        kind: "success",
+        message: "Added to Potential Homes.",
+      });
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Unable to add to board.";
+      setBoardAddMessage({
+        listingId: listing.id,
+        kind: "error",
+        message: msg,
+      });
+    } finally {
+      setBoardAddLoadingId(null);
+    }
+  }
+
+  async function addListingCandidateForHeart(listing: Listing) {
+    setBoardHeartLoadingId(listing.id);
+    try {
+      const res = await fetch("/api/board/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          listingId: listing.id,
+          itemType: "listing_candidate",
+          title: listing.title,
+          bodyText: buildListingCandidateBodyText(listing),
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message ?? "Unable to add to board.");
+      }
+
+      const payload = await res.json().catch(() => ({}));
+      if (typeof payload.numericId === "number") {
+        setCollabItemIdByListingId((prev) => ({
+          ...prev,
+          [listing.id]: payload.numericId,
+        }));
+      }
+    } catch {
+      // Keep UI state unchanged on failure.
+    } finally {
+      setBoardHeartLoadingId(null);
+    }
+  }
+
+  async function removeListingCandidateForHeart(listingId: number) {
+    const collabItemId = collabItemIdByListingId[listingId];
+    if (typeof collabItemId !== "number") return;
+
+    setBoardHeartLoadingId(listingId);
+    try {
+      const res = await fetch(`/api/board/items/${collabItemId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message ?? "Unable to remove from board.");
+      }
+
+      setCollabItemIdByListingId((prev) => {
+        const next = { ...prev };
+        delete next[listingId];
+        return next;
+      });
+    } catch {
+      // Keep UI state unchanged on failure.
+    } finally {
+      setBoardHeartLoadingId(null);
+    }
+  }
+
+  async function toggleListingCandidateOnBoard(listing: Listing) {
+    const collabItemId = collabItemIdByListingId[listing.id];
+    const isInBoard = typeof collabItemId === "number";
+
+    if (isInBoard) {
+      await removeListingCandidateForHeart(listing.id);
+      return;
+    }
+
+    await addListingCandidateForHeart(listing);
+  }
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-10 space-y-6 md:space-y-8">
@@ -363,11 +771,23 @@ export default function ListingsPage() {
               listing.image ||
               "/images/listing-placeholder.jpg";
 
+            const collabItemId = collabItemIdByListingId[listing.id];
+            const isInBoard = typeof collabItemId === "number";
+            const heartHoverText = isInBoard
+              ? "Remove from collaboration board"
+              : "Add to collaboration board";
+
             return (
               <Dialog
                 key={listing.id}
+                open={openListingId === listing.id}
                 onOpenChange={(open) => {
-                  if (!open) {
+                  if (open) {
+                    setOpenListingId(listing.id);
+                  } else {
+                    if (openListingId === listing.id) {
+                      setOpenListingId(null);
+                    }
                     setActiveImageIndex((prev) => ({
                       ...prev,
                       [listing.id]: 0,
@@ -376,26 +796,35 @@ export default function ListingsPage() {
                 }}
               >
                 <DialogTrigger asChild>
-                  <button
-                    type="button"
-                    className="group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card text-left text-card-foreground shadow hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLDivElement).click();
+                      }
+                    }}
+                    className="group cursor-pointer rounded-xl border border-border/50 bg-card text-left text-card-foreground shadow hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full p-4"
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden">
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted/20">
                       <img
                         src={primaryImage}
                         alt={`Photo of ${listing.title}`}
                         className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
                       />
-                      <div className="absolute top-3 right-3">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-full bg-black/20 text-white hover:bg-white hover:text-red-500 backdrop-blur-sm transition-colors"
-                          aria-label="Save listing"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <Heart className="h-4 w-4" />
-                        </Button>
+                      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+                        <ListingChatAction
+                          onClick={() => openChatDialogForListing(listing.id)}
+                          disabled={chatSending}
+                          label="Send to chat"
+                        />
+                        <ListingHeartAction
+                          onClick={() => toggleListingCandidateOnBoard(listing)}
+                          inBoard={isInBoard}
+                          loading={boardHeartLoadingId === listing.id}
+                          hoverLabel={heartHoverText}
+                        />
                       </div>
                       <div className="absolute top-3 left-3">
                         <Badge
@@ -412,7 +841,7 @@ export default function ListingsPage() {
                       </div>
                     </div>
 
-                    <CardContent className="p-4 flex-1 space-y-3">
+                    <CardContent className="p-0 flex-1 space-y-3 pt-4">
                       <div>
                         <h2 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
                           {listing.title}
@@ -438,24 +867,19 @@ export default function ListingsPage() {
                         </div>
                       </div>
                     </CardContent>
-                  </button>
+                  </div>
                 </DialogTrigger>
 
-                <DialogContent className="w-[min(92vw,720px)] h-[min(84vh,720px)] overflow-hidden p-0 gap-0 border-none shadow-2xl">
-                  <div className="flex h-full flex-col">
-                  <div className="relative h-56 sm:h-72 w-full shrink-0 bg-muted">
-                    <img
-                      src={primaryImage}
-                      alt={`Photo of ${listing.title}`}
-                      className="h-full w-full object-contain"
-                    />
-                    <Button
-                      className="absolute top-4 right-4 rounded-full bg-white/20 hover:bg-white/40 backdrop-blur text-white border-none shadow-none"
-                      size="icon"
-                      aria-label="Save listing"
-                    >
-                      <Heart className="h-5 w-5" />
-                    </Button>
+                <DialogContent className="w-[min(92vw,760px)] h-[min(88vh,760px)] overflow-hidden p-0 gap-0 border-none shadow-2xl">
+                  <div className="flex h-full min-h-0 flex-col">
+                  <div className="w-full shrink-0 bg-card p-4 border-b border-border/40">
+                    <div className="relative h-56 sm:h-72 w-full rounded-xl overflow-hidden bg-muted">
+                      <img
+                        src={primaryImage}
+                        alt={`Photo of ${listing.title}`}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
                   </div>
                   {gallery.length > 1 && (
                     <div className="px-6 pt-4 pb-3 bg-card border-b border-border/40">
@@ -483,7 +907,7 @@ export default function ListingsPage() {
                       </div>
                     </div>
                   )}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-card">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 bg-card">
                     <div>
                       <div className="flex justify-between items-start mb-2 gap-3">
                         <DialogTitle className="text-2xl font-bold text-foreground">
@@ -498,10 +922,21 @@ export default function ListingsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <a
+                        href={buildGoogleMapsUrl(listing)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 text-muted-foreground hover:text-primary cursor-pointer transition-colors"
+                        aria-label={`Open ${listing.title} on Google Maps`}
+                      >
                         <MapPin className="h-4 w-4" />
-                        {listing.address}
-                      </div>
+                        {listing.addressLine1}, {listing.city}, {listing.state}{" "}
+                        {listing.zip}
+                      </a>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Property details: {listing.beds} beds • {listing.baths} baths •{" "}
+                        {listing.sqft} sqft
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4 py-4 border-y border-border/50">
@@ -532,11 +967,43 @@ export default function ListingsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 pt-2">
-                      <Button variant="outline" className="w-full">
-                        Add to Board
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => addListingToBoard(listing)}
+                        disabled={boardAddLoadingId !== null}
+                      >
+                        {boardAddLoadingId === listing.id ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Adding...
+                          </span>
+                        ) : (
+                          "Add to collaboration board"
+                        )}
                       </Button>
-                      <Button className="w-full">Message Agent</Button>
+                      <Button
+                        type="button"
+                        className="w-full"
+                        onClick={() => openChatDialogForListing(listing.id)}
+                        disabled={chatSending}
+                      >
+                        Send to Chat
+                      </Button>
                     </div>
+
+                    {boardAddMessage?.listingId === listing.id ? (
+                      <p
+                        className={`text-sm mt-3 ${
+                          boardAddMessage.kind === "success"
+                            ? "text-primary"
+                            : "text-destructive"
+                        }`}
+                      >
+                        {boardAddMessage.message}
+                      </p>
+                    ) : null}
                   </div>
                   </div>
                 </DialogContent>
@@ -545,6 +1012,133 @@ export default function ListingsPage() {
           })}
         </div>
       )}
+
+      <Dialog
+        open={chatDialogOpen}
+        onOpenChange={(open) => {
+          setChatDialogOpen(open);
+          if (!open) {
+            setChatListingId(null);
+            setSelectedChatId(null);
+            setHasLoadedChatsForDialogOpen(false);
+            setChatsError(null);
+            setChatSendError(null);
+            setChatSending(false);
+            setChats([]);
+          }
+        }}
+      >
+        <DialogContent className="w-[min(92vw,720px)] overflow-hidden">
+          <div className="space-y-3">
+            <DialogTitle className="text-2xl font-bold text-foreground">
+              Send to Chat
+            </DialogTitle>
+
+            <div className="rounded-2xl border border-border/40 bg-muted/20 p-4">
+              {chatListing ? (
+                <div className="space-y-1">
+                  <p className="font-bold">{chatListing.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {chatListing.addressLine1}, {chatListing.city},{" "}
+                    {chatListing.state} {chatListing.zip}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select a home from Listings first.
+                </p>
+              )}
+            </div>
+
+            {chatsError ? (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">{chatsError}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={retryLoadChats}
+                >
+                  Retry loading conversations
+                </Button>
+              </div>
+            ) : null}
+
+            {chatsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading conversations...
+              </div>
+            ) : chats.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Choose a person</p>
+                <Select
+                  value={selectedChatId !== null ? String(selectedChatId) : undefined}
+                  onValueChange={(v) => {
+                    const num = Number(v);
+                    setSelectedChatId(Number.isFinite(num) ? num : null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a conversation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chats.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} ({c.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  No conversations found. Start a chat with someone first.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={retryLoadChats}
+                >
+                  Refresh conversations
+                </Button>
+              </div>
+            )}
+
+            {chatSendError ? (
+              <p className="text-sm text-destructive">{chatSendError}</p>
+            ) : null}
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setChatDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                disabled={!selectedChatId || chatSending || !chatListing}
+                onClick={sendListingToChat}
+              >
+                {chatSending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  "Send"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

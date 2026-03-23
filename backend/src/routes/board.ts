@@ -37,7 +37,7 @@ router.get("/items", async (req, res) => {
       query += ` AND listing_id = $${idx++}`;
       params.push(listingId);
     }
-    if (itemType && ["task", "note", "document"].includes(itemType)) {
+    if (itemType && ["task", "note", "document", "listing_candidate"].includes(itemType)) {
       query += ` AND item_type = $${idx++}`;
       params.push(itemType);
     }
@@ -49,6 +49,7 @@ router.get("/items", async (req, res) => {
     const items = rows.map((r) => ({
       id: `${r.item_type}-${r.collab_item_id}`,
       numericId: r.collab_item_id,
+      listingId: r.listing_id,
       type: r.item_type,
       title: r.title,
       content: r.body_text ?? "",

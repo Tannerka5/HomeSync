@@ -62,7 +62,7 @@ export const updateListingSchema = createListingSchema.partial();
 
 export const createBoardItemSchema = z.object({
   listingId: z.number().int().positive().optional(),
-  itemType: z.enum(["task", "note", "document"]),
+  itemType: z.enum(["task", "note", "document", "listing_candidate"]),
   title: z.string().min(1).max(255),
   bodyText: z.string().max(5000).optional(),
   status: z.enum(["todo", "in_progress", "done"]).default("todo"),
@@ -76,9 +76,32 @@ export const updateBoardItemSchema = z.object({
   dueDate: z.string().datetime().nullable().optional(),
 });
 
-export const sendMessageSchema = z.object({
-  messageText: z.string().min(1, "Message cannot be empty").max(5000),
+const listingSharePayloadSchema = z.object({
+  listingId: z.number().int().positive(),
+  title: z.string().min(1).max(255),
+  price: z.string().min(1).max(64),
+  address: z.string().min(1).max(500),
+  image: z.string().url().max(500).optional(),
+  listingUrl: z.string().url().max(500),
+  mapsUrl: z.string().url().max(500),
 });
+
+const textMessageSchema = z.object({
+  messageText: z.string().min(1, "Message cannot be empty").max(5000),
+  messageType: z.literal("text").optional(),
+  payload: z.unknown().optional(),
+});
+
+const listingShareMessageSchema = z.object({
+  messageText: z.string().min(1, "Message cannot be empty").max(5000),
+  messageType: z.literal("listing_share"),
+  payload: listingSharePayloadSchema,
+});
+
+export const sendMessageSchema = z.union([
+  textMessageSchema,
+  listingShareMessageSchema,
+]);
 
 export const createConversationSchema = z.object({
   listingId: z.number().int().positive().optional(),
