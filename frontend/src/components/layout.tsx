@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, MessageCircle, LogOut, MessageSquare } from "lucide-react";
+import { Menu, MessageCircle, LogOut, MessageSquare, User } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -28,7 +28,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const displayName = user?.email.split("@")[0] ?? "";
+  const displayName = user
+    ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
+      user.email.split("@")[0]
+    : "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   async function handleLogout() {
@@ -79,6 +82,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {item.label}
               </Link>
             ))}
+            {user ? (
+              <Link
+                href="/profile"
+                className={cn(
+                  "text-sm font-medium px-3.5 py-1.5 rounded-full transition-all duration-200",
+                  location === "/profile"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                )}
+              >
+                Profile
+              </Link>
+            ) : null}
 
             <Separator orientation="vertical" className="h-6 mx-2" />
 
@@ -100,9 +116,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             ) : (
               <Link href="/login">
-                <Button size="sm">
-                  Sign in
-                </Button>
+                <Button size="sm">Sign in</Button>
               </Link>
             )}
           </nav>
@@ -123,11 +137,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="flex flex-col h-full">
                 <div className="p-6 pb-2">
                   <div className="flex items-center gap-2 mb-6">
-                    <img
-                      src="/logo.png"
-                      alt=""
-                      className="h-8 w-auto"
-                    />
+                    <img src="/logo.png" alt="" className="h-8 w-auto" />
                     <span className="font-heading font-bold text-xl text-primary">
                       HomeSync
                     </span>
@@ -255,6 +265,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <h4 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                           Account
                         </h4>
+                        <Link href="/profile" onClick={() => setOpen(false)}>
+                          <div
+                            className={cn(
+                              "w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer",
+                              location === "/profile" ? "bg-primary/10" : "bg-transparent",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "p-2 rounded-md transition-colors",
+                                location === "/profile"
+                                  ? "bg-primary text-white"
+                                  : "bg-muted text-muted-foreground group-hover:text-foreground",
+                              )}
+                            >
+                              <User className="h-5 w-5" />
+                            </div>
+                            <div className="text-left">
+                              <p
+                                className={cn(
+                                  "font-medium text-sm",
+                                  location === "/profile" ? "text-primary" : "text-foreground",
+                                )}
+                              >
+                                Edit Profile
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Update account details
+                              </p>
+                            </div>
+                          </div>
+                        </Link>
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer"

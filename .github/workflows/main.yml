@@ -12,26 +12,84 @@ jobs:
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DATABASE_URL,JWT_SECRET,ALLOWED_ORIGINS
           script: |
             set -e
 
             cd /home/ec2-user/HomeSync
 
+            echo "Validating required deployment secrets..."
+            for var_name in DATABASE_URL JWT_SECRET ALLOWED_ORIGINS; do
+              if [ -z "${!var_name}" ]; then
+                echo "Missing required secret: ${var_name}"
+                exit 1
+              fi
+            done
+
+            echo "Writing production environment file..."
+            cat > /home/ec2-user/HomeSync/.env <<EOF
+            DATABASE_URL=$DATABASE_URL
+            JWT_SECRET=$JWT_SECRET
+            ALLOWED_ORIGINS=$ALLOWED_ORIGINS
+            NODE_ENV=production
+            PORT=4000
+            EOF
+            chmod 600 /home/ec2-user/HomeSync/.env
+
+            echo "Pulling latest code..."
             git pull origin main
+
+            echo "Installing dependencies..."
             npm install
+
+            echo "Building app..."
             npm run build
 
-            # Run database migrations (idempotent via IF NOT EXISTS)
+            echo "Running database setup..."
             psql "$DATABASE_URL" -f db/schema.sql
+            bash db/migrate.sh "$DATABASE_URL"
+            psql "$DATABASE_URL" -f db/bootstrap.sql
 
+            echo "Deploying frontend to nginx..."
             sudo rm -rf /usr/share/nginx/homesync/*
+            sudo mkdir -p /usr/share/nginx/homesync
             sudo cp -r /home/ec2-user/HomeSync/frontend/dist/* /usr/share/nginx/homesync/
             sudo chown -R nginx:nginx /usr/share/nginx/homesync
             sudo chmod -R 755 /usr/share/nginx/homesync
 
-            pm2 restart ecosystem.config.cjs --env production
+            echo "Removing legacy PM2 process name if present..."
+            if pm2 describe homesync >/dev/null 2>&1; then
+              pm2 delete homesync
+            fi
+
+            echo "Starting/reloading backend with PM2..."
+            DATABASE_URL="$DATABASE_URL" \
+            JWT_SECRET="$JWT_SECRET" \
+            ALLOWED_ORIGINS="$ALLOWED_ORIGINS" \
+            pm2 startOrReload ecosystem.config.cjs --env production --update-env
+
+            echo "Verifying PM2 backend process is online..."
+            if ! pm2 describe homesync-backend >/dev/null 2>&1; then
+              echo "PM2 app homesync-backend is missing after reload."
+              exit 1
+            fi
+            if ! pm2 status homesync-backend | grep -q "online"; then
+              echo "PM2 app homesync-backend is not online."
+              pm2 logs homesync-backend --lines 100 --nostream || true
+              exit 1
+            fi
+
+            pm2 save
+
+            echo "Restarting nginx..."
             sudo systemctl restart nginx
+
+            echo "Deployment complete."
