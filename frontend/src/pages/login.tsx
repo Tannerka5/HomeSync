@@ -58,36 +58,64 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-background relative overflow-hidden">
+      {/* Skip navigation link */}
+      <a
+        href="#login-form"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md"
+      >
+        Skip to login form
+      </a>
+
       {/* Decorative blurred circle */}
       <div
         className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/8 blur-3xl"
         aria-hidden="true"
       />
 
-      <Link href="/" className="mb-8 flex flex-col items-center gap-1 group">
+      <Link
+        href="/"
+        className="mb-8 flex flex-col items-center gap-1 group"
+        aria-label="HomeSync — Go to homepage"
+      >
         <img
           src="/logo-full.png"
-          alt="HomeSync"
-          className="h-20 sm:h-24 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+          alt=""
+          className="h-20 sm:h-24 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-300 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </Link>
 
       <Card className="w-full max-w-md shadow-xl border-border/50 overflow-hidden">
         {/* Accent bar */}
-        <div className="h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/50" />
+        <div
+          className="h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/50"
+          aria-hidden="true"
+        />
 
         <CardHeader className="space-y-1 text-center pt-7">
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardTitle
+            className="text-2xl"
+            id="login-title"
+            role="heading"
+            aria-level={1}
+          >
+            Welcome back
+          </CardTitle>
           <CardDescription>
             Enter your email to sign in to your account
           </CardDescription>
         </CardHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          id="login-form"
+          aria-labelledby="login-title"
+          noValidate
+        >
           <CardContent className="space-y-4">
             {error && (
               <div
                 key={shakeKey}
+                role="alert"
                 className="text-sm text-destructive bg-destructive/10 p-3 rounded-md animate-shake"
               >
                 {error}
@@ -101,10 +129,14 @@ export default function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 autoComplete="email"
+                required
+                aria-required="true"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
                 {...register("email")}
               />
               {errors.email && (
-                <p className="text-xs text-destructive">
+                <p id="email-error" className="text-xs text-destructive" role="alert">
                   {errors.email.message}
                 </p>
               )}
@@ -118,6 +150,10 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   className="pr-10"
+                  required
+                  aria-required="true"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                   {...register("password")}
                 />
                 <button
@@ -134,7 +170,7 @@ export default function LoginPage() {
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-destructive">
+                <p id="password-error" className="text-xs text-destructive" role="alert">
                   {errors.password.message}
                 </p>
               )}
@@ -146,12 +182,12 @@ export default function LoginPage() {
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked === true)}
               />
-              <label
+              <Label
                 htmlFor="remember"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                className="text-sm font-medium leading-none cursor-pointer"
               >
                 Remember me
-              </label>
+              </Label>
             </div>
 
             <Button
@@ -162,8 +198,8 @@ export default function LoginPage() {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <span>Signing in…</span>
                 </>
               ) : (
                 "Sign in"
@@ -173,7 +209,7 @@ export default function LoginPage() {
         </form>
 
         <CardFooter className="flex flex-col gap-4 pb-7">
-          <div className="relative w-full">
+          <div className="relative w-full" role="separator" aria-hidden="true">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
@@ -183,12 +219,10 @@ export default function LoginPage() {
               </span>
             </div>
           </div>
-          <Link href="/" className="w-full">
-            <Button variant="outline" className="w-full">
-              Continue as Guest
-            </Button>
-          </Link>
-          <p className="text-center text-sm text-muted-foreground">
+          <Button variant="outline" className="w-full" asChild>
+            <Link href="/">Continue as Guest</Link>
+          </Button>
+          <p className="text-center text-sm text-foreground/70">
             Don&apos;t have an account?{" "}
             <Link
               href="/signup"
