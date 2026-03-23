@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS realtor (
 
 CREATE TABLE IF NOT EXISTS listing (
   listing_id SERIAL PRIMARY KEY,
+  external_id VARCHAR(120) UNIQUE,
   address_line1 VARCHAR(255) NOT NULL,
   city VARCHAR(120) NOT NULL,
   state VARCHAR(2) NOT NULL,
@@ -44,7 +45,9 @@ CREATE TABLE IF NOT EXISTS listing (
   sqft INT DEFAULT 0,
   description TEXT,
   image VARCHAR(500),
+  image_urls JSONB,
   status VARCHAR(50) NOT NULL CHECK (status IN ('active', 'new', 'pending', 'sold', 'off_market')),
+  raw_payload JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_by_user_id INT REFERENCES app_user(user_id) ON DELETE SET NULL
@@ -95,6 +98,7 @@ CREATE TABLE IF NOT EXISTS message (
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
 CREATE INDEX IF NOT EXISTS idx_listing_city_state ON listing(city, state);
 CREATE INDEX IF NOT EXISTS idx_listing_status ON listing(status);
+CREATE INDEX IF NOT EXISTS idx_listing_external_id ON listing(external_id);
 CREATE INDEX IF NOT EXISTS idx_listing_created_by ON listing(created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_collab_item_listing ON collab_item(listing_id);
 CREATE INDEX IF NOT EXISTS idx_collab_item_type ON collab_item(item_type);

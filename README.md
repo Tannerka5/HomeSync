@@ -3,7 +3,9 @@
 **Live deployment:** `https://jonescg0.net`
 
 ## EARS Requirements
+
 ### Complete
+
 1. When a user enters valid credentials, the system shall sign the user in.
 2. When a user is signed in, the system shall maintain the user’s session until the user logs out or the session expires.
 3. When a user is signed in, the system shall display the user’s name in the interface.
@@ -11,6 +13,7 @@
 5. When a user accesses the application from a mobile or desktop device, the system shall present a usable responsive layout.
 
 ### Not Complete
+
 1. When a user opens the collaboration board, the system shall display the current board items stored in the database.
 2. When a user changes a task status on the collaboration board, the system shall update the task status in the database and display the updated status in the interface.
 3. When a user opens the listings page, the system shall display available property listings.
@@ -167,6 +170,49 @@ This starts both services:
 - Backend API: `http://localhost:4000`
 
 Open `http://localhost:5173` in your browser.
+
+### Importing real listings from Zillow (developer-only)
+
+To populate the database with a batch of real listings around a specific property using the **Zillow** RapidAPI:
+
+1. **Set developer-only environment variables (do not commit):**
+
+   ```env
+   ZILLOW_API_KEY=<your_rapidapi_key>
+   ZILLOW_API_HOST=private-zillow.p.rapidapi.com
+   ALLOW_ZILLOW_IMPORT=yes
+   ```
+
+   Only the designated developer should set these locally. Other team members do **not** need these values.
+
+2. **Run the import script from the backend directory:**
+
+   ```bash
+   cd backend
+
+   # Import listings around a specific Zillow property URL
+   npx tsx src/scripts/importZillowListings.ts --url="https://www.zillow.com/homedetails/2762-Downing-St-Jacksonville-FL-32205/44471319_zpid/" --max=40
+   ```
+
+   Flags:
+
+   - `--url`: The Zillow property URL to seed the import (required).
+   - `--max`: Maximum number of listings to normalize from the payload (default 40, max 200).
+
+   This script:
+
+   - Calls the Zillow API **once per run** with the provided URL (1 API call, staying within the 250 calls/month free tier).
+   - Normalizes the response into the `listing` table using:
+     - `external_id` = `zpid`.
+     - Address, price, beds/baths/sqft, and status.
+     - A high‑quality primary photo URL for `image`, plus all available photo URLs from the Zillow payload into `image_urls` (used by the UI gallery).
+   - Includes both the primary property and nearby/similar properties from the collections modules (up to `--max` listings).
+   - Upserts rows by `external_id`, so re‑running the script for the same URL updates existing listings instead of duplicating them.
+
+3. **Usage safeguards:**
+
+   - The script refuses to run unless `ALLOW_REALTY_IMPORT=yes` is set, to avoid accidental use in CI or by other developers.
+   - Do **not** wire this script into any HTTP endpoint or UI; it is intended for occasional, manual imports by a single developer.
 
 ## Verifying the Vertical Slice
 

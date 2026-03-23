@@ -11,9 +11,9 @@ router.get("/", async (_req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT listing_id, address_line1, city, state, zip, price,
-              beds, baths, sqft, description, image, status,
-              created_at, created_by_user_id
+              beds, baths, sqft, description, image, image_urls, status
        FROM listing
+       WHERE status IN ('active', 'new', 'pending')
        ORDER BY created_at DESC`,
     );
 
@@ -26,6 +26,7 @@ router.get("/", async (_req, res) => {
       baths: r.baths ?? 0,
       sqft: r.sqft ?? 0,
       image: r.image ?? "/images/listing-placeholder.jpg",
+      image_urls: Array.isArray(r.image_urls) ? r.image_urls : r.image_urls ?? [],
       description: r.description ?? "",
       status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
     }));
