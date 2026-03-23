@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS collab_item (
   collab_item_id SERIAL PRIMARY KEY,
   listing_id INT REFERENCES listing(listing_id) ON DELETE CASCADE,
   created_by_user_id INT REFERENCES app_user(user_id) ON DELETE SET NULL,
-  item_type VARCHAR(40) NOT NULL CHECK (item_type IN ('task', 'note', 'document')),
+  item_type VARCHAR(40) NOT NULL CHECK (item_type IN ('task', 'note', 'document', 'listing_candidate')),
   title VARCHAR(255) NOT NULL,
   body_text TEXT,
   status VARCHAR(40) NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
@@ -108,9 +108,22 @@ CREATE TABLE IF NOT EXISTS message (
   conversation_id INT NOT NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
   sender_user_id INT NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
   message_text TEXT NOT NULL,
+  message_type VARCHAR(40) NOT NULL DEFAULT 'text' CHECK (message_type IN ('text', 'listing_share')),
+  message_payload JSONB,
   sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE IF EXISTS message
+  ADD COLUMN IF NOT EXISTS message_type VARCHAR(40) NOT NULL DEFAULT 'text',
+  ADD COLUMN IF NOT EXISTS message_payload JSONB;
+
+ALTER TABLE IF EXISTS message
+  DROP CONSTRAINT IF EXISTS message_message_type_check;
+
+ALTER TABLE IF EXISTS message
+  ADD CONSTRAINT message_message_type_check
+  CHECK (message_type IN ('text', 'listing_share'));
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
