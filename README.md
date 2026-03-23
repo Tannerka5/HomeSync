@@ -147,6 +147,7 @@ git --version
 
    ```bash
    psql -U postgres -d homesync -f db/schema.sql
+   bash db/migrate.sh "postgresql://postgres:<your_password>@localhost:5432/homesync"
    psql -U postgres -d homesync -f db/seed.sql
    ```
 
@@ -273,6 +274,34 @@ When all three sprints are complete, HomeSync should feel like:
 - A project that is easy for new contributors to set up, understand, and extend, thanks to a clean architecture and up‑to‑date documentation.
 
 This repo is intentionally structured as a simple monorepo so that the entire HomeSync experience (frontend, backend, database) can be run, tested, and evolved as a single unit.
+
+## Production Environment and PM2
+
+On the EC2 host, the backend reads production variables from:
+
+- `/home/ec2-user/HomeSync/.env`
+
+Required keys:
+
+```env
+DATABASE_URL=postgresql://<user>:<url_encoded_password>@<host>:5432/<db_name>
+JWT_SECRET=<long-random-secret>
+ALLOWED_ORIGINS=https://yourdomain.com
+NODE_ENV=production
+PORT=4000
+```
+
+The deploy workflow writes this file on each deployment from GitHub Actions secrets. Manual edits are allowed, but they may be overwritten on the next deploy.
+Deploys now run `db/schema.sql` and then `db/migrate.sh` before starting PM2.
+
+Useful PM2 verification commands on EC2:
+
+```bash
+pm2 list
+pm2 describe homesync-backend
+pm2 status homesync-backend
+pm2 logs homesync-backend --lines 100
+```
 
 ## Repository Notes for GitHub
 

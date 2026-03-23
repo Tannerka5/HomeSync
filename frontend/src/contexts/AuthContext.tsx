@@ -2,21 +2,45 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 type User = {
   userId: number;
+  firstName: string;
+  lastName: string;
   email: string;
   userType: string;
+};
+
+type UpdateProfileInput = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
 };
 
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  signup: (email: string, password: string, userType: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+  ) => Promise<void>;
+  signup: (
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    userType: string,
+  ) => Promise<void>;
+  updateProfile: (input: UpdateProfileInput) => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+async function authFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const res = await fetch(url, { credentials: "include", ...options });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -46,11 +70,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(await res.json());
   }
 
-  async function signup(email: string, password: string, userType: string) {
+  async function signup(
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    userType: string,
+  ) {
     const res = await authFetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, userType }),
+      body: JSON.stringify({ firstName, lastName, email, password, userType }),
     });
     setUser(await res.json());
   }
@@ -60,8 +90,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }
 
+  async function updateProfile(input: UpdateProfileInput) {
+    const res = await authFetch("/api/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await res.json();
+    setUser({
+      userId: payload.userId,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email: payload.email,
+      userType: payload.userType,
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, signup, updateProfile, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
