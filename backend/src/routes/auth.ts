@@ -108,6 +108,7 @@ router.post("/login", async (req, res) => {
       "SELECT user_id, first_name, last_name, email, password_hash, user_type, token_version FROM app_user WHERE email = $1 AND is_active = true",
       [email],
     );
+
     const user = result.rows[0];
 
     if (!user || !(await verifyPassword(password, user.password_hash))) {

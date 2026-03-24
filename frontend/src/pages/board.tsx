@@ -11,6 +11,11 @@ import {
   LayoutDashboard,
   GripVertical,
   Upload,
+  Loader2,
+  MapPin,
+  BedDouble,
+  Bath,
+  Maximize,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
@@ -28,6 +33,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ListingChatAction, ListingHeartAction } from "@/components/listing-actions";
 
 const VISION_BOARD_ITEMS = [
   {
@@ -59,6 +72,7 @@ const VISION_BOARD_ITEMS = [
 type BoardItem = {
   id: string;
   numericId: number;
+  listingId?: number;
   type: string;
   title: string;
   content: string;
@@ -66,12 +80,64 @@ type BoardItem = {
   date: string;
 };
 
+type ListingCandidateContent = {
+  address?: string;
+  mapsUrl?: string;
+  price?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  image?: string;
+  description?: string;
+};
+
+type ListingDetails = {
+  id: number;
+  title: string;
+  price: string;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  image?: string;
+  image_urls?: string[];
+  description?: string;
+  status?: string;
+};
+
 export default function BoardPage() {
   const [visionItems, setVisionItems] = useState(VISION_BOARD_ITEMS);
   const [tasks, setTasks] = useState<BoardItem[]>([]);
   const [notes, setNotes] = useState<BoardItem[]>([]);
   const [documents, setDocuments] = useState<BoardItem[]>([]);
+  const [listingCandidates, setListingCandidates] = useState<BoardItem[]>([]);
   const [taskMessage, setTaskMessage] = useState<string>("");
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [chats, setChats] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  const [chatsLoading, setChatsLoading] = useState(false);
+  const [chatsError, setChatsError] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatSendError, setChatSendError] = useState<string | null>(null);
+  const [hasLoadedChatsForDialogOpen, setHasLoadedChatsForDialogOpen] = useState(false);
+  const [listingDetailsById, setListingDetailsById] = useState<Record<number, ListingDetails>>({});
+  const [listingDetailsLoading, setListingDetailsLoading] = useState(false);
+
+  function parseListingCandidateContent(content: string): ListingCandidateContent {
+    try {
+      const parsed = JSON.parse(content) as unknown;
+      if (parsed && typeof parsed === "object") {
+        return parsed as ListingCandidateContent;
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  }
 
   useEffect(() => {
     document.title = "Board · HomeSync";
@@ -92,6 +158,9 @@ export default function BoardPage() {
         setTasks(data.filter((d) => d.type === "task"));
         setNotes(data.filter((d) => d.type === "note"));
         setDocuments(data.filter((d) => d.type === "document"));
+        setListingCandidates(
+          data.filter((d) => d.type === "listing_candidate"),
+        );
         setTaskMessage("");
       } catch {
         setTaskMessage("Could not reach backend. Start frontend and backend together with npm run dev.");
@@ -100,6 +169,151 @@ export default function BoardPage() {
 
     loadItems();
   }, []);
+
+  const selectedCandidate =
+    selectedCandidateId !== null
+      ? listingCandidates.find((c) => c.id === selectedCandidateId) ?? null
+      : null;
+
+  async function ensureListingDetails(listingId?: number) {
+    if (typeof listingId !== "number") return;
+    if (listingDetailsById[listingId]) return;
+
+    setListingDetailsLoading(true);
+    try {
+      const res = await fetch(`/api/listings/${listingId}`, { credentials: "include" });
+      if (!res.ok) return;
+      const data = (await res.json()) as ListingDetails;
+      setListingDetailsById((prev) => ({ ...prev, [listingId]: data }));
+    } catch {
+      // Keep fallback candidate JSON when details endpoint fails.
+    } finally {
+      setListingDetailsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!chatDialogOpen) return;
+    if (hasLoadedChatsForDialogOpen) return;
+
+    let cancelled = false;
+    async function loadChats() {
+      setChatsLoading(true);
+      setChatsError(null);
+      try {
+        const res = await fetch("/api/chats", { credentials: "include" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          if (!cancelled) setChatsError(body.message ?? "Failed to load chats.");
+          return;
+        }
+
+        const data = (await res.json()) as Array<{ id: number; name: string; role: string }>;
+        if (cancelled) return;
+        setChats(data);
+        setSelectedChatId(data.length > 0 ? data[0].id : null);
+        setHasLoadedChatsForDialogOpen(true);
+      } catch {
+        if (!cancelled) setChatsError("Could not reach backend.");
+      } finally {
+        if (!cancelled) setChatsLoading(false);
+      }
+    }
+
+    loadChats();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatDialogOpen, hasLoadedChatsForDialogOpen]);
+
+  function openChatDialogForCandidate(candidateId: string) {
+    setSelectedCandidateId(candidateId);
+    setChatDialogOpen(true);
+    setHasLoadedChatsForDialogOpen(false);
+    setChats([]);
+    setSelectedChatId(null);
+    setChatsError(null);
+    setChatSendError(null);
+    setChatSending(false);
+  }
+
+  function retryLoadChats() {
+    setHasLoadedChatsForDialogOpen(false);
+    setChats([]);
+    setSelectedChatId(null);
+    setChatsError(null);
+  }
+
+  async function removeCandidateFromBoard(candidate: BoardItem) {
+    try {
+      const response = await fetch(`/api/board/items/${candidate.numericId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) return;
+      setListingCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+      if (selectedCandidateId === candidate.id) {
+        setSelectedCandidateId(null);
+      }
+    } catch {
+      // keep current UI state
+    }
+  }
+
+  async function sendCandidateToChat() {
+    if (!selectedCandidate || !selectedChatId) return;
+    const parsed = parseListingCandidateContent(selectedCandidate.content);
+    const address = parsed.address ?? selectedCandidate.title;
+    const mapsUrl = parsed.mapsUrl ?? "";
+
+    setChatSending(true);
+    setChatSendError(null);
+    try {
+      const listingId =
+        typeof selectedCandidate.listingId === "number"
+          ? selectedCandidate.listingId
+          : null;
+      const listingUrl = listingId
+        ? `${window.location.origin}/listings?listingId=${listingId}`
+        : "";
+      const messageText = `Shared a listing: ${selectedCandidate.title}${parsed.price ? ` (${parsed.price})` : ""}`;
+      const res = await fetch(`/api/chats/${selectedChatId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(
+          listingId
+            ? {
+                messageText,
+                messageType: "listing_share",
+                payload: {
+                  listingId,
+                  title: selectedCandidate.title,
+                  price: parsed.price ?? "Saved Home",
+                  address,
+                  image: parsed.image,
+                  listingUrl,
+                  mapsUrl,
+                },
+              }
+            : { messageText },
+        ),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setChatSendError(body.message ?? "Unable to send message.");
+        return;
+      }
+
+      setChatDialogOpen(false);
+      setSelectedCandidateId(null);
+    } catch {
+      setChatSendError("Could not reach backend.");
+    } finally {
+      setChatSending(false);
+    }
+  }
 
   async function toggleTaskStatus(taskId: string) {
     const numericId = Number(taskId.replace("task-", ""));
@@ -471,6 +685,361 @@ export default function BoardPage() {
           </div>
         </div>
       </section>
+
+      {/* Potential Homes */}
+      <section className="mb-10">
+        <div className="flex items-center justify-between px-1 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-primary/10 p-2">
+              <ExternalLink className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-heading text-xl font-bold">Potential Homes</h2>
+              <p className="text-sm text-muted-foreground">
+                Homes you added from Listings.
+              </p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">
+            {listingCandidates.length}
+          </Badge>
+        </div>
+
+        {listingCandidates.length === 0 ? (
+          <div className="rounded-2xl border border-border/40 bg-muted/20 px-4 py-10 text-center">
+            <p className="text-sm font-bold text-muted-foreground">
+              No potential homes yet.
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Open a listing and use “Add to Potential Homes”.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {listingCandidates.map((candidate) => {
+              const parsed = parseListingCandidateContent(candidate.content);
+              const details =
+                typeof candidate.listingId === "number"
+                  ? listingDetailsById[candidate.listingId]
+                  : undefined;
+              const displayBeds =
+                typeof details?.beds === "number" ? details.beds : parsed.beds;
+              const displayBaths =
+                typeof details?.baths === "number" ? details.baths : parsed.baths;
+              const displaySqft =
+                typeof details?.sqft === "number" ? details.sqft : parsed.sqft;
+              const heartHoverText = "Remove from collaboration board";
+              const candidateImage =
+                details?.image ?? parsed.image ?? "/images/listing-placeholder.jpg";
+              const detailAddress =
+                parsed.address ??
+                (details?.addressLine1
+                  ? [details.addressLine1, details.city, details.state, details.zip]
+                      .filter(Boolean)
+                      .join(", ")
+                  : candidate.title);
+              const detailPrice = details?.price ?? parsed.price ?? "Saved Home";
+              const detailDescription = details?.description ?? parsed.description;
+              const detailStatus = details?.status ?? candidate.status;
+              const detailMapsUrl = parsed.mapsUrl;
+
+              return (
+                <Dialog
+                  key={candidate.id}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      void ensureListingDetails(candidate.listingId);
+                    }
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          (e.currentTarget as HTMLDivElement).click();
+                        }
+                      }}
+                      className="group cursor-pointer rounded-xl border border-border/50 bg-card text-left text-card-foreground shadow hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full p-4"
+                    >
+                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted/20">
+                        <img
+                          src={candidateImage}
+                          alt={`Photo of ${candidate.title}`}
+                          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                        />
+                        <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+                          <ListingChatAction
+                            onClick={() => openChatDialogForCandidate(candidate.id)}
+                            disabled={chatSending}
+                            label="Send to chat"
+                          />
+                          <ListingHeartAction
+                            onClick={() => removeCandidateFromBoard(candidate)}
+                            inBoard
+                            hoverLabel={heartHoverText}
+                          />
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                          <p className="text-white font-bold text-xl">
+                            {detailPrice}
+                          </p>
+                        </div>
+                      </div>
+
+                      <CardContent className="p-0 flex-1 space-y-3 pt-4">
+                        <div>
+                          <h2 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">
+                            {candidate.title}
+                          </h2>
+                          <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate">{detailAddress}</span>
+                          </div>
+                        </div>
+
+                        {(typeof displayBeds === "number" ||
+                          typeof displayBaths === "number" ||
+                          typeof displaySqft === "number") && (
+                          <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 border-t border-border/50">
+                            {typeof displayBeds === "number" ? (
+                              <div className="flex items-center gap-1">
+                                <BedDouble className="h-4 w-4" />
+                                <span>{displayBeds} Beds</span>
+                              </div>
+                            ) : (
+                              <div />
+                            )}
+                            {typeof displayBaths === "number" ? (
+                              <div className="flex items-center gap-1">
+                                <Bath className="h-4 w-4" />
+                                <span>{displayBaths} Baths</span>
+                              </div>
+                            ) : (
+                              <div />
+                            )}
+                            {typeof displaySqft === "number" ? (
+                              <div className="flex items-center gap-1">
+                                <Maximize className="h-4 w-4" />
+                                <span>{displaySqft} sqft</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </CardContent>
+                    </div>
+                  </DialogTrigger>
+
+                  <DialogContent className="w-[min(92vw,760px)] h-[min(88vh,760px)] overflow-hidden p-0 gap-0 border-none shadow-2xl">
+                    <div className="flex h-full min-h-0 flex-col">
+                      <div className="w-full shrink-0 bg-card p-4 border-b border-border/40">
+                        <div className="relative h-56 sm:h-72 w-full rounded-xl overflow-hidden bg-muted">
+                          <img
+                            src={candidateImage}
+                            alt={`Photo of ${candidate.title}`}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 bg-card">
+                        <div>
+                          <div className="flex justify-between items-start mb-2 gap-3">
+                            <DialogTitle className="text-2xl font-bold text-foreground">
+                              {candidate.title}
+                            </DialogTitle>
+                            <div className="text-right">
+                              <p className="text-2xl font-bold text-primary">
+                                {detailPrice}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Status: {detailStatus}
+                              </p>
+                            </div>
+                          </div>
+                          {detailMapsUrl ? (
+                            <a
+                              href={detailMapsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <MapPin className="h-4 w-4" />
+                              {detailAddress}
+                            </a>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">{detailAddress}</p>
+                          )}
+                        </div>
+                        {listingDetailsLoading && !details ? (
+                          <p className="text-sm text-muted-foreground inline-flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading additional details...
+                          </p>
+                        ) : null}
+                        {(typeof displayBeds === "number" ||
+                          typeof displayBaths === "number" ||
+                          typeof displaySqft === "number") && (
+                          <div className="grid grid-cols-3 gap-4 py-4 border-y border-border/50">
+                            <div className="text-center">
+                              {typeof displayBeds === "number" ? (
+                                <>
+                                  <p className="text-sm text-muted-foreground">Bedrooms</p>
+                                  <p className="text-xl font-bold">{displayBeds}</p>
+                                </>
+                              ) : null}
+                            </div>
+                            <div className="text-center border-l border-border/50">
+                              {typeof displayBaths === "number" ? (
+                                <>
+                                  <p className="text-sm text-muted-foreground">Bathrooms</p>
+                                  <p className="text-xl font-bold">{displayBaths}</p>
+                                </>
+                              ) : null}
+                            </div>
+                            <div className="text-center border-l border-border/50">
+                              {typeof displaySqft === "number" ? (
+                                <>
+                                  <p className="text-sm text-muted-foreground">Square Feet</p>
+                                  <p className="text-xl font-bold">{displaySqft}</p>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        )}
+                        {detailDescription ? (
+                          <div className="space-y-2">
+                            <h3 className="font-semibold">About this home</h3>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {detailDescription}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <Dialog
+        open={chatDialogOpen}
+        onOpenChange={(open) => {
+          setChatDialogOpen(open);
+          if (!open) {
+            setSelectedCandidateId(null);
+            setSelectedChatId(null);
+            setHasLoadedChatsForDialogOpen(false);
+            setChatsError(null);
+            setChatSendError(null);
+            setChatSending(false);
+            setChats([]);
+          }
+        }}
+      >
+        <DialogContent className="w-[min(92vw,720px)] overflow-hidden">
+          <div className="space-y-3">
+            <DialogTitle className="text-2xl font-bold text-foreground">
+              Send to Chat
+            </DialogTitle>
+
+            <div className="rounded-2xl border border-border/40 bg-muted/20 p-4">
+              {selectedCandidate ? (
+                <div className="space-y-1">
+                  <p className="font-bold">{selectedCandidate.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {parseListingCandidateContent(selectedCandidate.content).address ??
+                      selectedCandidate.title}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select a home first.
+                </p>
+              )}
+            </div>
+
+            {chatsError ? (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">{chatsError}</p>
+                <Button type="button" variant="outline" size="sm" onClick={retryLoadChats}>
+                  Retry loading conversations
+                </Button>
+              </div>
+            ) : null}
+
+            {chatsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading conversations...
+              </div>
+            ) : chats.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Choose a person</p>
+                <Select
+                  value={selectedChatId !== null ? String(selectedChatId) : undefined}
+                  onValueChange={(v) => {
+                    const num = Number(v);
+                    setSelectedChatId(Number.isFinite(num) ? num : null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a conversation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chats.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} ({c.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  No conversations found. Start a chat with someone first.
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={retryLoadChats}>
+                  Refresh conversations
+                </Button>
+              </div>
+            )}
+
+            {chatSendError ? <p className="text-sm text-destructive">{chatSendError}</p> : null}
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setChatDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                disabled={!selectedChatId || chatSending || !selectedCandidate}
+                onClick={sendCandidateToChat}
+              >
+                {chatSending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  "Send"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Vision Board */}
       <section className="space-y-6">

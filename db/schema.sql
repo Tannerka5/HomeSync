@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS realtor (
 
 CREATE TABLE IF NOT EXISTS listing (
   listing_id SERIAL PRIMARY KEY,
+  external_id VARCHAR(120) UNIQUE,
   address_line1 VARCHAR(255) NOT NULL,
   city VARCHAR(120) NOT NULL,
   state VARCHAR(2) NOT NULL,
@@ -51,7 +52,9 @@ CREATE TABLE IF NOT EXISTS listing (
   sqft INT DEFAULT 0,
   description TEXT,
   image VARCHAR(500),
+  image_urls JSONB,
   status VARCHAR(50) NOT NULL CHECK (status IN ('active', 'new', 'pending', 'sold', 'off_market')),
+  raw_payload JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_by_user_id INT REFERENCES app_user(user_id) ON DELETE SET NULL
@@ -91,7 +94,7 @@ CREATE TABLE IF NOT EXISTS collab_item (
   collab_item_id SERIAL PRIMARY KEY,
   listing_id INT REFERENCES listing(listing_id) ON DELETE CASCADE,
   created_by_user_id INT REFERENCES app_user(user_id) ON DELETE SET NULL,
-  item_type VARCHAR(40) NOT NULL CHECK (item_type IN ('task', 'note', 'document')),
+  item_type VARCHAR(40) NOT NULL CHECK (item_type IN ('task', 'note', 'document', 'listing_candidate')),
   title VARCHAR(255) NOT NULL,
   body_text TEXT,
   status VARCHAR(40) NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
@@ -105,14 +108,28 @@ CREATE TABLE IF NOT EXISTS message (
   conversation_id INT NOT NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
   sender_user_id INT NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
   message_text TEXT NOT NULL,
+  message_type VARCHAR(40) NOT NULL DEFAULT 'text' CHECK (message_type IN ('text', 'listing_share')),
+  message_payload JSONB,
   sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE IF EXISTS message
+  ADD COLUMN IF NOT EXISTS message_type VARCHAR(40) NOT NULL DEFAULT 'text',
+  ADD COLUMN IF NOT EXISTS message_payload JSONB;
+
+ALTER TABLE IF EXISTS message
+  DROP CONSTRAINT IF EXISTS message_message_type_check;
+
+ALTER TABLE IF EXISTS message
+  ADD CONSTRAINT message_message_type_check
+  CHECK (message_type IN ('text', 'listing_share'));
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
 CREATE INDEX IF NOT EXISTS idx_listing_city_state ON listing(city, state);
 CREATE INDEX IF NOT EXISTS idx_listing_status ON listing(status);
+CREATE INDEX IF NOT EXISTS idx_listing_external_id ON listing(external_id);
 CREATE INDEX IF NOT EXISTS idx_listing_created_by ON listing(created_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_collab_item_listing ON collab_item(listing_id);
 CREATE INDEX IF NOT EXISTS idx_collab_item_type ON collab_item(item_type);

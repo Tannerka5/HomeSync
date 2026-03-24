@@ -9,3 +9,5 @@ dist
 .env.*
 !.env.example
 backend/.env
+REALTY_IMPORT_CHECKLIST.md
+examplejson.txt
