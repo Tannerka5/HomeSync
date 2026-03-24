@@ -11,6 +11,13 @@
 3. When a user is signed in, the system shall display the user’s name in the interface.
 4. When a user logs out, the system shall end the user’s session and return the user to the login page.
 5. When a user accesses the application from a mobile or desktop device, the system shall present a usable responsive layout.
+6. When a user opens the collaboration board, the system shall display the current board items stored in the database.
+7. When a user opens the listings page, the system shall display available property listings.
+8. When a user selects a listing, the system shall display the details for that listing.
+9. When a user opens a conversation, the system shall display the messages for that conversation.
+10. When a user sends a message, the system shall store the message and display it in the conversation.
+11. When the system is retrieving page data, the system shall display a loading indicator until the data is available.
+12. If the system cannot complete a request, the system shall display an error message to the user.
 
 ### Not Complete
 
