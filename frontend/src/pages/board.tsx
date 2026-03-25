@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Plus,
   MoreHorizontal,
@@ -16,6 +16,7 @@ import {
   BedDouble,
   Bath,
   Maximize,
+  Trash2,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,30 @@ export default function BoardPage() {
   const [hasLoadedChatsForDialogOpen, setHasLoadedChatsForDialogOpen] = useState(false);
   const [listingDetailsById, setListingDetailsById] = useState<Record<number, ListingDetails>>({});
   const [listingDetailsLoading, setListingDetailsLoading] = useState(false);
+  const visionFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  function handleVisionImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const imageUrl = URL.createObjectURL(file);
+
+    const newVisionItem = {
+      id: `vision-${Date.now()}`,
+      image: imageUrl,
+      title: file.name.replace(/\.[^/.]+$/, ""),
+    };
+
+    setVisionItems((prev) => [...prev, newVisionItem]);
+
+    event.target.value = "";
+
+  }
+
+  function deleteVisionItem(itemId: string) {
+    setVisionItems((prev) => prev.filter((item) => item.id !== itemId));
+  }
+  
   function parseListingCandidateContent(content: string): ListingCandidateContent {
     try {
       const parsed = JSON.parse(content) as unknown;
@@ -1056,13 +1080,25 @@ export default function BoardPage() {
             </div>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-primary hover:bg-primary/5"
-          >
-            View Full Board
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={visionFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleVisionImageUpload}
+            />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-primary hover:bg-primary/5"
+              onClick={() => visionFileInputRef.current?.click()}
+            >
+              <Plus className="h-4 w-4" />
+              Add Inspiration
+            </Button>
+          </div>
         </div>
 
         <DragDropContext onDragEnd={onDragEnd}>
@@ -1094,9 +1130,23 @@ export default function BoardPage() {
                           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
                         <div className="absolute bottom-3 left-3 text-white">
                           <p className="text-sm font-medium drop-shadow-md">{item.title}</p>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteVisionItem(item.id);
+                          }}
+                          className="absolute left-2 top-2 rounded-lg bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                          aria-label={`Delete vision item: ${item.title}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+
                         <div
                           {...provided.dragHandleProps}
                           className="absolute right-2 top-2 cursor-grab rounded-lg bg-black/20 p-1.5 text-white opacity-0 backdrop-blur-md transition-opacity active:cursor-grabbing group-hover:opacity-100"
