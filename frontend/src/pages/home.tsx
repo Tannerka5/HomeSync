@@ -28,6 +28,11 @@ const STEPS = [
 export default function HomePage() {
   const { user } = useAuth();
 
+  function scrollToHowItWorks() {
+    const section = document.getElementById("how-it-works");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   useEffect(() => {
     document.title = "HomeSync";
   }, []);
@@ -93,13 +98,18 @@ export default function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 text-white/50 animate-bounce-subtle">
+        <button
+          type="button"
+          onClick={scrollToHowItWorks}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 text-white/50 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-full p-1 animate-bounce-subtle cursor-pointer"
+          aria-label="Scroll to How It Works section"
+        >
           <ChevronDown className="h-7 w-7" />
-        </div>
+        </button>
       </section>
 
       {/* ── How It Works ── */}
-      <section className="py-24 bg-background">
+      <section id="how-it-works" className="py-24 bg-background">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16 space-y-3">
             <p className="text-sm font-semibold uppercase tracking-widest text-primary">
