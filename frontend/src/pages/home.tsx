@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Search, Users, RefreshCcw, ChevronDown } from "lucide-react";
 import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const STEPS = [
   {
@@ -25,6 +26,8 @@ const STEPS = [
 ];
 
 export default function HomePage() {
+  const { user } = useAuth();
+
   useEffect(() => {
     document.title = "HomeSync";
   }, []);
@@ -59,7 +62,8 @@ export default function HomePage() {
             className="slide-up text-lg md:text-xl text-white/80 max-w-xl leading-relaxed"
             style={{ animationDelay: "0.35s" }}
           >
-            Track every step of your home purchase with your agent&nbsp;in&nbsp;one&nbsp;place.
+            Track every step of your home purchase with your
+            agent&nbsp;in&nbsp;one&nbsp;place.
           </p>
 
           <div
@@ -74,15 +78,17 @@ export default function HomePage() {
                 Browse Listings
               </Button>
             </Link>
-            <Link href="/signup">
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-13 px-8 text-base rounded-full bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm hover:-translate-y-0.5"
-              >
-                Get Started
-              </Button>
-            </Link>
+            {!user ? (
+              <Link href="/signup">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-13 px-8 text-base rounded-full bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm hover:-translate-y-0.5"
+                >
+                  Get Started
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -148,7 +154,8 @@ export default function HomePage() {
             Ready to find your next home?
           </h2>
           <p className="text-white/80 max-w-lg mx-auto text-lg leading-relaxed">
-            Join HomeSync today and collaborate with your agent every step of the&nbsp;way.
+            Join HomeSync today and collaborate with your agent every step of
+            the&nbsp;way.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
             <Link href="/listings">
@@ -159,14 +166,16 @@ export default function HomePage() {
                 Browse Listings
               </Button>
             </Link>
-            <Link href="/signup">
-              <Button
-                size="lg"
-                className="h-12 px-8 rounded-full bg-white text-primary font-semibold hover:bg-white/90 shadow-lg hover:-translate-y-0.5"
-              >
-                Create Account
-              </Button>
-            </Link>
+            {!user ? (
+              <Link href="/signup">
+                <Button
+                  size="lg"
+                  className="h-12 px-8 rounded-full bg-white text-primary font-semibold hover:bg-white/90 shadow-lg hover:-translate-y-0.5"
+                >
+                  Create Account
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>
@@ -175,10 +184,18 @@ export default function HomePage() {
       <footer className="bg-foreground text-background/70 py-10">
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="" className="h-7 w-auto brightness-0 invert opacity-70" />
-            <span className="font-heading font-bold text-background/90 text-lg">HomeSync</span>
+            <img
+              src="/logo.png"
+              alt=""
+              className="h-7 w-auto brightness-0 invert opacity-70"
+            />
+            <span className="font-heading font-bold text-background/90 text-lg">
+              HomeSync
+            </span>
           </div>
-          <p className="text-sm">&copy; {new Date().getFullYear()} HomeSync Inc. All rights reserved.</p>
+          <p className="text-sm">
+            &copy; {new Date().getFullYear()} HomeSync Inc. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>

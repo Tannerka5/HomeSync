@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, MessageCircle, LogOut, MessageSquare, User } from "lucide-react";
+import {
+  Menu,
+  MessageCircle,
+  LogOut,
+  MessageSquare,
+  User,
+  ChevronDown,
+} from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -10,6 +17,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NAVIGATION_ITEMS } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
   const { user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
@@ -28,11 +47,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const firstName = user
+    ? user.firstName?.trim() || user.email?.split("@")[0] || "there"
+    : "";
   const displayName = user
     ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
-      user.email.split("@")[0]
+      user.email?.split("@")[0] ||
+      "HomeSync user"
     : "";
-  const avatarInitial = displayName.charAt(0).toUpperCase();
+  const avatarInitial = (firstName.charAt(0) || "H").toUpperCase();
 
   async function handleLogout() {
     setOpen(false);
@@ -82,29 +105,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {item.label}
               </Link>
             ))}
-            {user ? (
-              <Link
-                href="/profile"
-                className={cn(
-                  "text-sm font-medium px-3.5 py-1.5 rounded-full transition-all duration-200",
-                  location === "/profile"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-              >
-                Profile
-              </Link>
-            ) : null}
 
             <Separator orientation="vertical" className="h-6 mx-2" />
 
             {user ? (
               <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8 border-2 border-primary/20">
-                  <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                    {avatarInitial}
-                  </AvatarFallback>
-                </Avatar>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="h-10 px-3 text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/50"
+                      aria-label={`Open account menu for ${firstName}`}
+                    >
+                      <span className="truncate max-w-[11rem]">
+                        Hello, {firstName}
+                      </span>
+                      <ChevronDown
+                        className="h-4 w-4 opacity-70"
+                        aria-hidden="true"
+                      />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-44"
+                    sideOffset={8}
+                  >
+                    <DropdownMenuItem
+                      onSelect={() => setLocation("/profile")}
+                      className={cn(
+                        location === "/profile"
+                          ? "bg-primary/10 text-primary"
+                          : "",
+                      )}
+                    >
+                      <User className="h-4 w-4" aria-hidden="true" />
+                      Profile
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -122,7 +161,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Mobile Menu */}
-          <Sheet open={open} onOpenChange={setOpen}>
+          <Sheet
+            open={open}
+            onOpenChange={(nextOpen) => {
+              setOpen(nextOpen);
+              if (!nextOpen) {
+                setMobileAccountOpen(false);
+              }
+            }}
+          >
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden">
                 <Menu className="h-5 w-5" />
@@ -144,20 +191,91 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
 
                   {user ? (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 mb-6">
-                      <Avatar className="h-10 w-10 border-2 border-primary/20">
-                        <AvatarFallback className="font-semibold bg-primary/10 text-primary">
-                          {avatarInitial}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="overflow-hidden flex-1">
-                        <p className="text-sm font-medium truncate">
-                          {displayName}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate capitalize">
-                          {user.userType}
-                        </p>
+                    <div className="rounded-xl bg-primary/5 border border-primary/10 mb-6 overflow-hidden">
+                      <div className="flex items-center gap-3 p-3 pb-2">
+                        <Avatar className="h-10 w-10 border-2 border-primary/20 shrink-0">
+                          <AvatarFallback className="font-semibold bg-primary/10 text-primary">
+                            {avatarInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">
+                            {displayName}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate capitalize">
+                            {user.userType}
+                          </p>
+                        </div>
                       </div>
+
+                      <Collapsible
+                        open={mobileAccountOpen}
+                        onOpenChange={setMobileAccountOpen}
+                      >
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-full h-10 flex items-center justify-between px-3 text-sm font-medium hover:bg-muted/70 border-t border-primary/10"
+                            aria-label={`Toggle account options for ${firstName}`}
+                            aria-expanded={mobileAccountOpen}
+                          >
+                            <span className="truncate">Hello, {firstName}</span>
+                            <ChevronDown
+                              className={cn(
+                                "h-4 w-4 opacity-70 transition-transform duration-200",
+                                mobileAccountOpen ? "rotate-180" : "rotate-0",
+                              )}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                          <div className="px-2 pb-2 pt-1 border-t border-primary/10 bg-background/70">
+                            <Link
+                              href="/profile"
+                              onClick={() => setOpen(false)}
+                            >
+                              <div
+                                className={cn(
+                                  "flex items-start gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer",
+                                  location === "/profile"
+                                    ? "bg-primary/10"
+                                    : "bg-transparent",
+                                )}
+                              >
+                                <div
+                                  className={cn(
+                                    "p-2 rounded-md transition-colors",
+                                    location === "/profile"
+                                      ? "bg-primary text-white"
+                                      : "bg-muted text-muted-foreground group-hover:text-foreground",
+                                  )}
+                                >
+                                  <User
+                                    className="h-5 w-5"
+                                    aria-hidden="true"
+                                  />
+                                </div>
+                                <div className="text-left">
+                                  <p
+                                    className={cn(
+                                      "font-medium text-sm",
+                                      location === "/profile"
+                                        ? "text-primary"
+                                        : "text-foreground",
+                                    )}
+                                  >
+                                    Profile
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    View and edit your account
+                                  </p>
+                                </div>
+                              </div>
+                            </Link>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   ) : (
                     <div className="mb-6">
@@ -265,38 +383,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <h4 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                           Account
                         </h4>
-                        <Link href="/profile" onClick={() => setOpen(false)}>
-                          <div
-                            className={cn(
-                              "w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer",
-                              location === "/profile" ? "bg-primary/10" : "bg-transparent",
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                "p-2 rounded-md transition-colors",
-                                location === "/profile"
-                                  ? "bg-primary text-white"
-                                  : "bg-muted text-muted-foreground group-hover:text-foreground",
-                              )}
-                            >
-                              <User className="h-5 w-5" />
-                            </div>
-                            <div className="text-left">
-                              <p
-                                className={cn(
-                                  "font-medium text-sm",
-                                  location === "/profile" ? "text-primary" : "text-foreground",
-                                )}
-                              >
-                                Edit Profile
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Update account details
-                              </p>
-                            </div>
-                          </div>
-                        </Link>
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-muted group cursor-pointer"
