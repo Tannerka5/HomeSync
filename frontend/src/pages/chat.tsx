@@ -1,12 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 import { 
   Search, 
-  MoreVertical, 
-  Phone, 
-  Video, 
-  Send, 
-  Paperclip,
-  Smile,
+  Send,
   Check,
   ChevronLeft,
   Pin,
@@ -14,7 +10,11 @@ import {
   Loader2,
   ExternalLink,
   MapPin,
+  Paperclip,
+  Smile
 } from "lucide-react";
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,9 @@ type ChatPreview = {
   unread: boolean;
   pinned: boolean;
   category: string;
+  status: "pending" | "accepted" | "declined";
+  requestedBy: number;
+  isRequester: boolean;
 };
 
 type Message = {
@@ -46,7 +49,7 @@ type Message = {
   isOwn: boolean;
 };
 
-type FilterType = "All" | "Unread" | "Pinned" | "Professionals";
+type FilterType = "All" | "Unread" | "Pinned" | "Professionals" | "Collaborators" | "Requests";
 
 type ListingSharePayload = {
   listingId: number;
@@ -56,6 +59,14 @@ type ListingSharePayload = {
   image?: string;
   listingUrl: string;
   mapsUrl: string;
+};
+
+type SearchResult = {
+  conversationId: number;
+  messageId: number;
+  text: string;
+  sentAt: string;
+  name: string;
 };
 
 function renderMessageTextWithLinks(text: string) {
@@ -168,6 +179,149 @@ export default function ChatPage() {
   const [messageInput, setMessageInput] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatEmail, setNewChatEmail] = useState("");
+  const [newChatMessage, setNewChatMessage] = useState("");
+  const [newChatError, setNewChatError] = useState("");
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const newSocket = io({ path: "/socket.io" });
+    setSocket(newSocket);
+    
+    newSocket.on("new_message", (msg: Message) => {
+      setMessages((prev) => {
+        if (prev.find(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+
+    newSocket.on("typing_start", ({ userId }) => {
+      setTypingUsers(prev => {
+        const next = new Set(prev);
+        next.add(userId);
+        return next;
+      });
+    });
+
+    newSocket.on("typing_stop", ({ userId }) => {
+      setTypingUsers(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    });
+
+    newSocket.on("new_request", () => {
+      // Reload chat list when a new request is received
+      fetch("/api/chats", { credentials: "include" })
+        .then(res => res.json())
+        .then(data => setChats(data))
+        .catch(() => {});
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socket && selectedChatId) {
+      socket.emit("join_room", selectedChatId);
+    }
+  }, [socket, selectedChatId]);
+
+  const togglePin = async (e: React.MouseEvent, chatId: number, isPinned: boolean) => {
+    e.preventDefault(); // Prevent standard right-click menu
+    
+    // Optimistic update
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, pinned: !isPinned } : c));
+    
+    try {
+      const method = isPinned ? "DELETE" : "POST";
+      const res = await fetch(`/api/chats/${chatId}/pin`, { method, credentials: "include" });
+      if (!res.ok) {
+        // Revert on failure
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, pinned: isPinned } : c));
+      }
+    } catch {
+      // Revert on failure
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, pinned: isPinned } : c));
+    }
+  };
+
+  const handleRequest = async (chatId: number, action: 'accept' | 'decline') => {
+    try {
+      const res = await fetch(`/api/chats/${chatId}/${action}`, { method: "PATCH", credentials: "include" });
+      if (res.ok) {
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, status: action === 'accept' ? 'accepted' : 'declined' } : c));
+        if (action === 'decline') setSelectedChatId(null);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleStartNewChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewChatError("");
+    if (!newChatEmail.trim() || !newChatMessage.trim()) {
+      setNewChatError("Both email and an initial message are required.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/chats/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: newChatEmail.trim(), messageText: newChatMessage.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShowNewChatModal(false);
+        setNewChatEmail("");
+        setNewChatMessage("");
+        // Reload chats
+        const chatsRes = await fetch("/api/chats", { credentials: "include" });
+        if (chatsRes.ok) setChats(await chatsRes.json());
+        
+        // Force the tab back to "All" so the new requested conversation isn't hidden if on Requests tab
+        setActiveFilter("All");
+        if (data.id) setSelectedChatId(data.id);
+      } else {
+        setNewChatError(data.message || "Failed to start chat.");
+      }
+    } catch {
+      setNewChatError("Network error.");
+    }
+  };
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/chats/search?q=${encodeURIComponent(searchQuery)}`, { credentials: "include" });
+        if (res.ok) {
+          setSearchResults(await res.json());
+        }
+      } catch (e) {
+        /* ignore */
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   useEffect(() => {
     document.title = "Chat · HomeSync";
@@ -191,7 +345,13 @@ export default function ChatPage() {
   const loadMessages = useCallback(async (chatId: number) => {
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, { credentials: "include" });
-      if (res.ok) setMessages(await res.json());
+      if (res.ok) {
+        setMessages(await res.json());
+        
+        // Optimistically clear unread and notify server
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread: false } : c));
+        fetch(`/api/chats/${chatId}/read-all`, { method: "POST", credentials: "include" }).catch(() => {});
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -217,15 +377,29 @@ export default function ChatPage() {
   }
 
   const filteredChats = chats.filter(chat => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!chat.name.toLowerCase().includes(q) && !chat.lastMessage.toLowerCase().includes(q)) return false;
+    }
+    
+    const isPendingReceiver = chat.status === "pending" && !chat.isRequester;
+
+    if (activeFilter === "Requests") {
+      return isPendingReceiver;
+    }
+    
+    if (isPendingReceiver || chat.status === "declined") return false;
+
     if (activeFilter === "Unread") return chat.unread;
     if (activeFilter === "Pinned") return chat.pinned;
-    if (activeFilter === "Professionals") return chat.role !== "Buyer";
+    if (activeFilter === "Professionals") return chat.role.toLowerCase() !== "buyer" && chat.role.toLowerCase() !== "collaborator";
+    if (activeFilter === "Collaborators") return chat.role.toLowerCase() === "buyer" || chat.role.toLowerCase() === "collaborator";
     return true;
   });
 
   const selectedChat = chats.find(c => c.id === selectedChatId) ?? chats[0];
 
-  const filters: FilterType[] = ["All", "Unread", "Pinned", "Professionals"];
+  const filters: FilterType[] = ["All", "Unread", "Pinned", "Professionals", "Collaborators", "Requests"];
 
   return (
     <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-background">
@@ -241,6 +415,7 @@ export default function ChatPage() {
               variant="ghost"
               size="icon"
               className="rounded-full"
+              onClick={() => setShowNewChatModal(true)}
               aria-label="Start a new message"
             >
               <Plus className="h-5 w-5" />
@@ -249,7 +424,21 @@ export default function ChatPage() {
           
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
-            <Input placeholder="Search conversations..." className="pl-9 bg-muted/50 border-none rounded-2xl h-11 focus-visible:ring-primary/20" />
+            <Input 
+              placeholder="Search conversations..." 
+              className="pl-9 pr-9 bg-muted/50 border-none rounded-2xl h-11 focus-visible:ring-primary/20"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-5 w-5 rounded-full bg-muted-foreground/20 text-muted-foreground hover:bg-muted-foreground/30 transition-colors"
+                aria-label="Clear search"
+              >
+                &times;
+              </button>
+            )}
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
@@ -277,12 +466,35 @@ export default function ChatPage() {
 
         <ScrollArea className="flex-1">
           <div className="flex flex-col">
-            {filteredChats.map((chat) => (
-              <button
+            {searchQuery ? (
+              <div className="p-4 space-y-3">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Message Results</p>
+                {isSearching ? (
+                  <div className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
+                ) : searchResults.length === 0 ? (
+                  <p className="text-sm text-center text-muted-foreground py-4">No messages found for "{searchQuery}"</p>
+                ) : searchResults.map(res => (
+                  <button
+                    key={res.messageId}
+                    onClick={() => setSelectedChatId(res.conversationId)}
+                    className="w-full text-left p-3 rounded-xl hover:bg-muted transition-colors text-sm border border-border/40"
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-bold">{res.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                        {new Date(res.sentAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">{res.text}</p>
+                  </button>
+                ))}
+              </div>
+            ) : filteredChats.map((chat) => (
+              <div
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
                 className={cn(
-                  "flex items-start gap-4 p-5 text-left transition-all hover:bg-muted/30 border-b border-border/30 last:border-0 group relative overflow-hidden",
+                  "flex items-start gap-4 p-5 text-left transition-all hover:bg-muted/30 border-b border-border/30 last:border-0 group relative overflow-hidden cursor-pointer",
                   selectedChatId === chat.id ? "bg-primary/5 after:absolute after:left-0 after:top-1/2 after:-translate-y-1/2 after:h-12 after:w-1 after:bg-primary after:rounded-r-full" : ""
                 )}
               >
@@ -301,32 +513,50 @@ export default function ChatPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0 overflow-hidden pt-0.5">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className={cn(
-                      "font-bold truncate text-sm transition-colors",
-                      chat.unread ? "text-foreground" : "text-foreground/80 group-hover:text-primary"
-                    )}>
-                      {chat.name}
-                    </span>
-                    <span className="text-[10px] font-bold text-muted-foreground/60 ml-2 shrink-0 uppercase tracking-tighter">
-                      {chat.time}
-                    </span>
+                  <div className="flex justify-between items-start mb-1 min-w-0">
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "font-bold truncate text-sm transition-colors",
+                          chat.unread ? "text-foreground" : "text-foreground/80 group-hover:text-primary"
+                        )}>
+                          {chat.name}
+                        </span>
+                        <Badge variant="secondary" className="text-[9px] h-4 px-1.5 rounded-sm font-black uppercase tracking-widest bg-muted/60 text-muted-foreground/80 shrink-0">
+                          {chat.role}
+                        </Badge>
+                      </div>
+                      <p className={cn(
+                        "text-xs truncate leading-relaxed mt-0.5",
+                        chat.unread ? "font-bold text-foreground" : "text-muted-foreground/90"
+                      )}>
+                        {chat.lastMessage}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                      <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter">
+                        {chat.time}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePin(e, chat.id, chat.pinned);
+                        }}
+                        className={cn(
+                          "hover:bg-primary/10 p-1.5 -mr-1.5 -mb-1.5 rounded-full transition-colors",
+                          chat.pinned ? "text-primary" : "text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-primary/80"
+                        )}
+                        title={chat.pinned ? "Unpin conversation" : "Pin conversation"}
+                        aria-label={chat.pinned ? "Unpin conversation" : "Pin conversation"}
+                      >
+                        <Pin className={cn("h-3.5 w-3.5", chat.pinned && "fill-current")} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mb-2">
-                     <Badge variant="secondary" className="text-[9px] h-4 px-1.5 rounded-sm font-black uppercase tracking-widest bg-muted/60 text-muted-foreground/80">
-                       {chat.role}
-                     </Badge>
-                  </div>
-                  <p className={cn(
-                    "text-xs truncate leading-relaxed",
-                    chat.unread ? "font-bold text-foreground" : "text-muted-foreground/90"
-                  )}>
-                    {chat.lastMessage}
-                  </p>
                 </div>
-              </button>
+              </div>
             ))}
-            {filteredChats.length === 0 && (
+            {!searchQuery && filteredChats.length === 0 && (
               <div className="p-10 text-center space-y-3">
                 <div className="bg-muted/30 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4">
                   <Search className="h-6 w-6 text-muted-foreground opacity-20" />
@@ -374,38 +604,22 @@ export default function ChatPage() {
             </>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all"
-              aria-label="Start a phone call"
-            >
-              <Phone className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full transition-all"
-              aria-label="Start a video call"
-            >
-              <Video className="h-5 w-5" />
-            </Button>
-            <Separator orientation="vertical" className="h-6 mx-1 bg-border/40" />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground rounded-full"
-              aria-label="More options"
-            >
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </div>
         </div>
 
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-6 pt-6">
           <div className="space-y-6 max-w-4xl mx-auto pb-10">
+              {selectedChat?.status === "pending" && (
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                  <div className="text-sm font-medium">
+                    <span className="font-bold">{selectedChat.name}</span> wants to connect with you.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleRequest(selectedChat.id, 'decline')}>Decline</Button>
+                    <Button size="sm" onClick={() => handleRequest(selectedChat.id, 'accept')}>Accept</Button>
+                  </div>
+                </div>
+              )}
              {messages.length === 0 && (
                <p className="text-center text-sm text-muted-foreground py-10">No messages yet. Start the conversation!</p>
              )}
@@ -445,13 +659,22 @@ export default function ChatPage() {
                  </div>
                )
              ))}
+              {typingUsers.size > 0 && (
+                <div className="flex gap-4 group">
+                  <div className="flex flex-col gap-2 max-w-[75%]">
+                    <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-3 shadow-sm text-foreground/90 text-sm font-medium italic text-muted-foreground">
+                      User is typing...
+                    </div>
+                  </div>
+                </div>
+              )}
           </div>
         </ScrollArea>
 
         {/* Input Area */}
         <div className="p-6 bg-background/80 backdrop-blur-xl border-t shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] relative z-10">
           <div className="max-w-4xl mx-auto flex items-end gap-3">
-             <div className="flex items-center gap-1 shrink-0">
+             <div className="flex items-center gap-1 shrink-0 relative">
                <Button
                  variant="ghost"
                  size="icon"
@@ -463,28 +686,44 @@ export default function ChatPage() {
                <Button
                  variant="ghost"
                  size="icon"
+                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                  className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
                  aria-label="Add an emoji"
                >
                  <Smile className="h-5 w-5" />
                </Button>
+               {showEmojiPicker && (
+                 <div className="absolute bottom-14 left-0 z-50 shadow-xl rounded-xl border border-border/50 overflow-hidden">
+                   <Picker 
+                     data={data} 
+                     onEmojiSelect={(emoji: any) => {
+                       setMessageInput(prev => prev + emoji.native);
+                       setShowEmojiPicker(false);
+                     }}
+                     theme="light"
+                     previewPosition="none"
+                   />
+                 </div>
+               )}
              </div>
              
              <div className="flex-1 bg-muted/40 rounded-[28px] border border-border/50 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all flex items-center pr-1.5 overflow-hidden">
                <Input 
-                className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/90 placeholder:font-medium" 
-                 placeholder={selectedChat ? `Message ${selectedChat.name.split(' ')[0]}...` : "Select a conversation..."}
+                 className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent min-h-[52px] py-4 px-5 text-sm placeholder:text-muted-foreground/90 placeholder:font-medium disabled:opacity-50" 
+                 placeholder={selectedChat?.status === "pending" ? "Accept request to message..." : selectedChat ? `Message ${selectedChat.name.split(' ')[0]}...` : "Select a conversation..."}
                  value={messageInput}
+                 disabled={selectedChat?.status === "pending" || !selectedChat}
                  onChange={(e) => setMessageInput(e.target.value)}
-                 onKeyDown={(e) => e.key === 'Enter' && messageInput && sendMessage()}
+                 onKeyDown={(e) => e.key === 'Enter' && messageInput && selectedChat?.status !== "pending" && sendMessage()}
                />
                <Button 
                  size="icon" 
                  className={cn(
                   "h-10 w-10 rounded-full shrink-0 transition-all duration-300",
-                  messageInput ? "bg-primary text-white scale-100 opacity-100 shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground scale-90 opacity-0 pointer-events-none"
+                  messageInput && selectedChat?.status !== "pending" ? "bg-primary text-white scale-100 opacity-100 shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground scale-90 opacity-0 pointer-events-none"
                  )}
                  onClick={sendMessage}
+                 disabled={selectedChat?.status === "pending"}
                  aria-label="Send message"
                >
                  <Send className="h-4 w-4" />
@@ -493,6 +732,60 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* New Chat Modal */}
+      {showNewChatModal && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border p-6 relative">
+            <button 
+              onClick={() => setShowNewChatModal(false)}
+              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              &times;
+            </button>
+            <h2 className="text-xl font-bold font-heading mb-2">New Conversation</h2>
+            <p className="text-sm text-muted-foreground mb-6">Enter the email address of the person you'd like to connect with.</p>
+            
+            <form onSubmit={handleStartNewChat} className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Recipient Email</label>
+                  <Input
+                    autoFocus
+                    placeholder="name@example.com"
+                    type="email"
+                    value={newChatEmail}
+                    onChange={(e) => setNewChatEmail(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Message</label>
+                  <textarea
+                    placeholder="Introduce yourself..."
+                    value={newChatMessage}
+                    onChange={(e) => setNewChatMessage(e.target.value)}
+                    className="flex min-h-[80px] w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+                {newChatError && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 text-sm font-medium">
+                    {newChatError}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="ghost" onClick={() => setShowNewChatModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!newChatEmail.trim() || !newChatMessage.trim()}>
+                  Send Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

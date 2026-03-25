@@ -5,7 +5,9 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer } from "node:http";
 import { verifyDatabaseConnection } from "./db.js";
+import { initSocketServer } from "./socket.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 import authRouter from "./routes/auth.js";
 import listingsRouter from "./routes/listings.js";
@@ -87,7 +89,10 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ message: "Internal server error." });
 });
 
-app.listen(port, async () => {
+const httpServer = createServer(app);
+initSocketServer(httpServer);
+
+httpServer.listen(port, async () => {
   console.log(`[backend] Server listening on http://localhost:${port}`);
   await verifyDatabaseConnection();
 });

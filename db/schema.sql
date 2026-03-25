@@ -87,7 +87,16 @@ CREATE TABLE IF NOT EXISTS conversation (
   buyer_id INT REFERENCES buyer(buyer_id) ON DELETE SET NULL,
   realtor_id INT REFERENCES realtor(realtor_id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_message_at TIMESTAMPTZ
+  last_message_at TIMESTAMPTZ,
+  status VARCHAR(20) NOT NULL DEFAULT 'accepted' CHECK (status IN ('pending', 'accepted', 'declined')),
+  requested_by_user_id INT REFERENCES app_user(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS conversation_pin (
+  user_id         INT NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
+  conversation_id INT NOT NULL REFERENCES conversation(conversation_id) ON DELETE CASCADE,
+  pinned_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, conversation_id)
 );
 
 CREATE TABLE IF NOT EXISTS collab_item (
@@ -114,6 +123,13 @@ CREATE TABLE IF NOT EXISTS message (
   is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS message_read (
+  message_id INT NOT NULL REFERENCES message(message_id) ON DELETE CASCADE,
+  user_id    INT NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
+  read_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (message_id, user_id)
+);
+
 ALTER TABLE IF EXISTS message
   ADD COLUMN IF NOT EXISTS message_type VARCHAR(40) NOT NULL DEFAULT 'text',
   ADD COLUMN IF NOT EXISTS message_payload JSONB;
@@ -123,7 +139,7 @@ ALTER TABLE IF EXISTS message
 
 ALTER TABLE IF EXISTS message
   ADD CONSTRAINT message_message_type_check
-  CHECK (message_type IN ('text', 'listing_share'));
+  CHECK (message_type IN ('text', 'listing_share', 'image', 'file'));
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
