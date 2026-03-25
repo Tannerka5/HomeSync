@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { 
   Search, 
@@ -11,7 +11,8 @@ import {
   ExternalLink,
   MapPin,
   Paperclip,
-  Smile
+  Smile,
+  Trash2
 } from "lucide-react";
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -21,10 +22,22 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 type ChatPreview = {
   id: number;
+  participantId: number;
   name: string;
   role: string;
   avatar: string;
@@ -36,10 +49,12 @@ type ChatPreview = {
   status: "pending" | "accepted" | "declined";
   requestedBy: number;
   isRequester: boolean;
+  email: string;
 };
 
 type Message = {
   id: number;
+  conversationId?: number;
   senderUserId: number;
   senderName: string;
   text: string;
@@ -47,6 +62,7 @@ type Message = {
   payload?: ListingSharePayload | null;
   sentAt: string;
   isOwn: boolean;
+  readBy?: { userId: number; readAt: string }[];
 };
 
 type FilterType = "All" | "Unread" | "Pinned" | "Professionals" | "Collaborators" | "Requests";
@@ -68,6 +84,11 @@ type SearchResult = {
   sentAt: string;
   name: string;
 };
+
+function isOnlyEmojis(text: string) {
+  const emojiRegex = /^(\p{Extended_Pictographic}|\s)+$/u;
+  return emojiRegex.test(text) && text.trim().length > 0;
+}
 
 function renderMessageTextWithLinks(text: string) {
   const urlPattern = /(https?:\/\/[^\s]+)/g;
@@ -189,16 +210,92 @@ export default function ChatPage() {
   const [newChatError, setNewChatError] = useState("");
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+
+  const selectedChatIdRef = useRef<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (emojiPickerContainerRef.current && !emojiPickerContainerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    }
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
+
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, typingUsers]);
 
   useEffect(() => {
     const newSocket = io({ path: "/socket.io" });
     setSocket(newSocket);
     
+    newSocket.on("presence", ({ onlineUserIds }) => {
+      setOnlineUsers(new Set(onlineUserIds));
+    });
+
     newSocket.on("new_message", (msg: Message) => {
-      setMessages((prev) => {
-        if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
+      // 1. If we are currently looking at this conversation, append it
+      if (selectedChatIdRef.current === msg.conversationId) {
+        setMessages((prev) => {
+          if (prev.find(m => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        fetch(`/api/chats/${msg.conversationId}/read-all`, { method: "POST", credentials: "include" }).catch(() => {});
+      }
+
+      // 2. Update the sidebar chats
+      setChats(prev => {
+        if (!prev.find(c => c.id === msg.conversationId)) {
+          fetch("/api/chats", { credentials: "include" })
+            .then(res => res.json())
+            .then(data => setChats(data))
+            .catch(() => {});
+          return prev;
+        }
+        
+        const updatedChats = prev.map(c => {
+          if (c.id === msg.conversationId) {
+            return { 
+              ...c, 
+              lastMessage: msg.text, 
+              time: new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+              unread: selectedChatIdRef.current !== msg.conversationId
+            };
+          }
+          return c;
+        });
+
+        const chatToMove = updatedChats.find(c => c.id === msg.conversationId);
+        if (chatToMove) {
+          return [chatToMove, ...updatedChats.filter(c => c.id !== msg.conversationId)];
+        }
+        return updatedChats;
       });
+    });
+
+    newSocket.on("messages_read", ({ readByUserId, readAt }) => {
+      setMessages(prev => prev.map(m => {
+        if (m.senderUserId !== readByUserId) {
+          const exists = m.readBy?.find(r => r.userId === readByUserId);
+          if (!exists) {
+            return { ...m, readBy: [...(m.readBy || []), { userId: readByUserId, readAt }] };
+          }
+        }
+        return m;
+      }));
     });
 
     newSocket.on("typing_start", ({ userId }) => {
@@ -219,6 +316,13 @@ export default function ChatPage() {
 
     newSocket.on("new_request", () => {
       // Reload chat list when a new request is received
+      fetch("/api/chats", { credentials: "include" })
+        .then(res => res.json())
+        .then(data => setChats(data))
+        .catch(() => {});
+    });
+
+    newSocket.on("request_accepted", () => {
       fetch("/api/chats", { credentials: "include" })
         .then(res => res.json())
         .then(data => setChats(data))
@@ -261,6 +365,16 @@ export default function ChatPage() {
       if (res.ok) {
         setChats(prev => prev.map(c => c.id === chatId ? { ...c, status: action === 'accept' ? 'accepted' : 'declined' } : c));
         if (action === 'decline') setSelectedChatId(null);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleDeleteChat = async (chatId: number) => {
+    try {
+      const res = await fetch(`/api/chats/${chatId}`, { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        setChats(prev => prev.filter(c => c.id !== chatId));
+        if (selectedChatId === chatId) setSelectedChatId(null);
       }
     } catch { /* ignore */ }
   };
@@ -361,6 +475,7 @@ export default function ChatPage() {
 
   async function sendMessage() {
     if (!messageInput.trim() || !selectedChatId) return;
+    setShowEmojiPicker(false);
     try {
       const res = await fetch(`/api/chats/${selectedChatId}/messages`, {
         method: "POST",
@@ -372,6 +487,25 @@ export default function ChatPage() {
         const msg = await res.json();
         setMessages((prev) => [...prev, msg]);
         setMessageInput("");
+
+        // Update sidebar locally
+        setChats(prev => {
+          const updatedChats = prev.map(c => {
+            if (c.id === selectedChatId) {
+              return { 
+                ...c, 
+                lastMessage: msg.text, 
+                time: new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) 
+              };
+            }
+            return c;
+          });
+          const chatToMove = updatedChats.find(c => c.id === selectedChatId);
+          if (chatToMove) {
+            return [chatToMove, ...updatedChats.filter(c => c.id !== selectedChatId)];
+          }
+          return updatedChats;
+        });
       }
     } catch { /* ignore */ }
   }
@@ -379,7 +513,7 @@ export default function ChatPage() {
   const filteredChats = chats.filter(chat => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      if (!chat.name.toLowerCase().includes(q) && !chat.lastMessage.toLowerCase().includes(q)) return false;
+      if (!chat.name.toLowerCase().includes(q) && !chat.lastMessage.toLowerCase().includes(q) && !chat.email?.toLowerCase().includes(q)) return false;
     }
     
     const isPendingReceiver = chat.status === "pending" && !chat.isRequester;
@@ -399,7 +533,7 @@ export default function ChatPage() {
 
   const selectedChat = chats.find(c => c.id === selectedChatId) ?? chats[0];
 
-  const filters: FilterType[] = ["All", "Unread", "Pinned", "Professionals", "Collaborators", "Requests"];
+  const filters: FilterType[] = ["Pinned", "All", "Unread", "Professionals", "Collaborators", "Requests"];
 
   return (
     <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-background">
@@ -466,30 +600,12 @@ export default function ChatPage() {
 
         <ScrollArea className="flex-1">
           <div className="flex flex-col">
-            {searchQuery ? (
-              <div className="p-4 space-y-3">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Message Results</p>
-                {isSearching ? (
-                  <div className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
-                ) : searchResults.length === 0 ? (
-                  <p className="text-sm text-center text-muted-foreground py-4">No messages found for "{searchQuery}"</p>
-                ) : searchResults.map(res => (
-                  <button
-                    key={res.messageId}
-                    onClick={() => setSelectedChatId(res.conversationId)}
-                    className="w-full text-left p-3 rounded-xl hover:bg-muted transition-colors text-sm border border-border/40"
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold">{res.name}</span>
-                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                        {new Date(res.sentAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">{res.text}</p>
-                  </button>
-                ))}
+            {searchQuery && filteredChats.length > 0 && (
+              <div className="px-5 pt-4 pb-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Conversations
               </div>
-            ) : filteredChats.map((chat) => (
+            )}
+            {filteredChats.map((chat) => (
               <div
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
@@ -556,6 +672,31 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+
+            {searchQuery && (
+              <div className="p-4 space-y-3 border-t border-border/50 bg-muted/10">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Message Results</p>
+                {isSearching ? (
+                  <div className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
+                ) : searchResults.length === 0 ? (
+                  <p className="text-sm text-center text-muted-foreground py-4">No messages found for "{searchQuery}"</p>
+                ) : searchResults.map(res => (
+                  <button
+                    key={res.messageId}
+                    onClick={() => setSelectedChatId(res.conversationId)}
+                    className="w-full text-left p-3 rounded-xl hover:bg-muted transition-colors text-sm border border-border/40 bg-background"
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-bold text-primary">{res.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                        {new Date(res.sentAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">{res.text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
             {!searchQuery && filteredChats.length === 0 && (
               <div className="p-10 text-center space-y-3">
                 <div className="bg-muted/30 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4">
@@ -592,15 +733,43 @@ export default function ChatPage() {
               <Avatar className="h-11 w-11 border-2 border-background shadow-sm ring-1 ring-border/50">
                 <AvatarFallback className="font-bold">{selectedChat.name[0]}</AvatarFallback>
               </Avatar>
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+              {onlineUsers.has(selectedChat.participantId) && (
+                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+              )}
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-bold text-base leading-none mb-1">{selectedChat.name}</h3>
               <div className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Now &bull; {selectedChat.role}</p>
+                {onlineUsers.has(selectedChat.participantId) && <span className="h-1.5 w-1.5 rounded-full bg-green-500" />}
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  {onlineUsers.has(selectedChat.participantId) ? "Active Now \u2022 " : ""}{selectedChat.role}
+                </p>
               </div>
             </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete Conversation" aria-label="Delete Conversation">
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this conversation? This will hide the chat from your view, but it will not notify the other user.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleDeleteChat(selectedChat.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             </>
             )}
           </div>
@@ -611,32 +780,41 @@ export default function ChatPage() {
           <div className="space-y-6 max-w-4xl mx-auto pb-10">
               {selectedChat?.status === "pending" && (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-                  <div className="text-sm font-medium">
-                    <span className="font-bold">{selectedChat.name}</span> wants to connect with you.
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleRequest(selectedChat.id, 'decline')}>Decline</Button>
-                    <Button size="sm" onClick={() => handleRequest(selectedChat.id, 'accept')}>Accept</Button>
-                  </div>
+                  {!selectedChat.isRequester ? (
+                    <>
+                      <div className="text-sm font-medium">
+                        <span className="font-bold">{selectedChat.name}</span> wants to connect with you.
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleRequest(selectedChat.id, 'decline')}>Decline</Button>
+                        <Button size="sm" onClick={() => handleRequest(selectedChat.id, 'accept')}>Accept</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm font-medium text-center w-full text-muted-foreground">
+                      Waiting for <span className="font-bold text-foreground">{selectedChat.name}</span> to accept your request.
+                    </div>
+                  )}
                 </div>
               )}
              {messages.length === 0 && (
                <p className="text-center text-sm text-muted-foreground py-10">No messages yet. Start the conversation!</p>
              )}
-             {messages.map((msg) => (
-               msg.isOwn ? (
+             {messages.map((msg) => {
+               const onlyEmojis = !msg.payload && msg.messageType !== "listing_share" && isOnlyEmojis(msg.text);
+               return msg.isOwn ? (
                  <div key={msg.id} className="flex gap-4 flex-row-reverse group">
                    <div className="flex flex-col gap-2 items-end max-w-[75%]">
-                     <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20">
-                      {renderMessageBody(msg)}
+                     <div className={cn(onlyEmojis ? "bg-transparent ring-0 shadow-none p-0 text-5xl" : "bg-primary text-primary-foreground rounded-3xl rounded-tr-none p-4 shadow-lg shadow-primary/10 border border-primary/20", "relative")}>
+                      {onlyEmojis ? <p className="leading-none">{msg.text}</p> : renderMessageBody(msg)}
                      </div>
                      <div className="flex items-center gap-2 mr-1">
                       <span className="text-[9px] font-bold text-muted-foreground/90 uppercase tracking-wider">
                          {new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                        </span>
                        <div className="flex -space-x-1">
-                         <Check className="h-2.5 w-2.5 text-primary" />
-                         <Check className="h-2.5 w-2.5 text-primary" />
+                         <Check className={cn("h-3 w-3 relative right-1", msg.readBy && msg.readBy.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
+                         <Check className={cn("h-3 w-3", msg.readBy && msg.readBy.length > 0 ? "text-primary" : "text-muted-foreground/50")} />
                        </div>
                      </div>
                    </div>
@@ -647,8 +825,8 @@ export default function ChatPage() {
                      <AvatarFallback>{msg.senderName[0]?.toUpperCase()}</AvatarFallback>
                    </Avatar>
                    <div className="flex flex-col gap-2 max-w-[75%]">
-                     <div className="bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300 text-foreground/90">
-                      {renderMessageBody(msg)}
+                     <div className={cn(onlyEmojis ? "bg-transparent border-0 shadow-none p-0 text-5xl" : "bg-white border border-border/40 rounded-3xl rounded-tl-none p-4 shadow-sm hover:shadow-md transition-shadow duration-300 text-foreground/90", "relative")}>
+                      {onlyEmojis ? <p className="leading-none">{msg.text}</p> : renderMessageBody(msg)}
                      </div>
                     <div className="flex items-center gap-2 ml-1">
                       <span className="text-[9px] font-bold text-muted-foreground/90 uppercase tracking-wider">
@@ -658,7 +836,7 @@ export default function ChatPage() {
                    </div>
                  </div>
                )
-             ))}
+             })}
               {typingUsers.size > 0 && (
                 <div className="flex gap-4 group">
                   <div className="flex flex-col gap-2 max-w-[75%]">
@@ -668,13 +846,14 @@ export default function ChatPage() {
                   </div>
                 </div>
               )}
+             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 
         {/* Input Area */}
         <div className="p-6 bg-background/80 backdrop-blur-xl border-t shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] relative z-10">
           <div className="max-w-4xl mx-auto flex items-end gap-3">
-             <div className="flex items-center gap-1 shrink-0 relative">
+             <div ref={emojiPickerContainerRef} className="flex items-center gap-1 shrink-0 relative">
                <Button
                  variant="ghost"
                  size="icon"
@@ -698,7 +877,6 @@ export default function ChatPage() {
                      data={data} 
                      onEmojiSelect={(emoji: any) => {
                        setMessageInput(prev => prev + emoji.native);
-                       setShowEmojiPicker(false);
                      }}
                      theme="light"
                      previewPosition="none"
@@ -739,7 +917,7 @@ export default function ChatPage() {
           <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border p-6 relative">
             <button 
               onClick={() => setShowNewChatModal(false)}
-              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-4 top-4 text-destructive hover:bg-destructive/10 transition-colors h-8 w-8 flex flex-col items-center justify-center rounded-full text-3xl leading-[0] font-light pb-1"
             >
               &times;
             </button>
@@ -766,6 +944,18 @@ export default function ChatPage() {
                     value={newChatMessage}
                     onChange={(e) => setNewChatMessage(e.target.value)}
                     className="flex min-h-[80px] w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (e.ctrlKey || e.shiftKey || e.metaKey) {
+                          // Let it create a newline instead of sending
+                          return;
+                        }
+                        e.preventDefault();
+                        if (newChatEmail.trim() && newChatMessage.trim()) {
+                          handleStartNewChat(e as any);
+                        }
+                      }
+                    }}
                   />
                 </div>
                 {newChatError && (

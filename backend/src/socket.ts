@@ -3,6 +3,7 @@ import type { Server as HTTPServer } from "node:http";
 import jwt from "jsonwebtoken";
 
 let io: Server;
+const onlineUsers = new Set<number>();
 
 export function initSocketServer(httpServer: HTTPServer) {
   io = new Server(httpServer, {
@@ -13,7 +14,7 @@ export function initSocketServer(httpServer: HTTPServer) {
   });
 
   io.on("connection", (socket) => {
-    // Authenticate socket and join personal notification room
+    let currentUserId: number | null = null;
     const cookieHeader = socket.request.headers.cookie;
     if (cookieHeader) {
       const tokenMatch = cookieHeader.match(/token=([^;]+)/);
@@ -22,13 +23,23 @@ export function initSocketServer(httpServer: HTTPServer) {
             const secret = process.env.JWT_SECRET || 'homesync-dev-secret-do-not-use-in-prod';
             const decoded = jwt.verify(tokenMatch[1], secret) as { userId: number };
             if (decoded.userId) {
-              socket.join(`user:${decoded.userId}`);
+              currentUserId = decoded.userId;
+              socket.join(`user:${currentUserId}`);
+              onlineUsers.add(currentUserId);
+              io.emit("presence", { onlineUserIds: Array.from(onlineUsers) });
             }
          } catch(e) {
             console.error("Socket authentication failed:", e);
          }
       }
     }
+
+    socket.on("disconnect", () => {
+      if (currentUserId) {
+        onlineUsers.delete(currentUserId);
+        io.emit("presence", { onlineUserIds: Array.from(onlineUsers) });
+      }
+    });
 
     socket.on("join_room", (conversationId) => {
       socket.join(`conversation:${conversationId}`);

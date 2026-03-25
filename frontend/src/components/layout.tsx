@@ -217,7 +217,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             type="button"
                             className="w-full h-10 flex items-center justify-between px-3 text-sm font-medium hover:bg-muted/70 border-t border-primary/10"
                             aria-label={`Toggle account options for ${firstName}`}
-                            aria-expanded={mobileAccountOpen}
+                            aria-expanded={mobileAccountOpen ? "true" : "false"}
                           >
                             <span className="truncate">Hello, {firstName}</span>
                             <ChevronDown
@@ -415,14 +415,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1">{children}</main>
 
-      <Link href="/chat">
-        <Button
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl bg-primary hover:bg-primary/90 hover:scale-105 transition-all z-50 flex items-center justify-center animate-pulse-ring"
-          aria-label="Open chat"
-        >
-          <MessageCircle className="h-6 w-6 text-white" />
-        </Button>
-      </Link>
+      {location !== "/chat" && (
+        <Link href="/chat">
+          <Button
+            className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl hover:shadow-2xl bg-primary hover:bg-primary/90 hover:scale-105 transition-all z-50 flex items-center justify-center animate-pulse-ring"
+            aria-label="Open chat"
+          >
+            <MessageCircle className="h-6 w-6 text-white" />
+          </Button>
+        </Link>
+      )}
     </div>
   );
 }
