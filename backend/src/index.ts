@@ -11,6 +11,7 @@ import authRouter from "./routes/auth.js";
 import listingsRouter from "./routes/listings.js";
 import boardRouter from "./routes/board.js";
 import chatsRouter from "./routes/chats.js";
+import adminRouter from "./routes/admin.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -72,6 +73,7 @@ app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/listings", requireAuth, listingsRouter);
 app.use("/api/board", requireAuth, boardRouter);
 app.use("/api/chats", requireAuth, chatsRouter);
+app.use("/api/admin", requireAuth, adminRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({
