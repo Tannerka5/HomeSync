@@ -1,8 +1,9 @@
-import { 
-  Home, 
-  Search, 
-  ClipboardList, 
-  MessageSquare, 
+import {
+  Home,
+  Search,
+  ClipboardList,
+  MessageSquare,
+  BarChart3,
 } from "lucide-react";
 
 export const NAVIGATION_ITEMS = [
@@ -24,10 +25,16 @@ export const NAVIGATION_ITEMS = [
     icon: ClipboardList,
     subtitle: "Keep notes and tasks organized" 
   },
-  { 
-    label: "Chat", 
-    path: "/chat", 
+  {
+    label: "Chat",
+    path: "/chat",
     icon: MessageSquare,
-    subtitle: "Connect with your team" 
+    subtitle: "Connect with your team"
+  },
+  {
+    label: "Admin",
+    path: "/admin",
+    icon: BarChart3,
+    subtitle: "Platform OKR dashboard"
   },
 ];

@@ -14,6 +14,7 @@ import ChatPage from "@/pages/chat";
 import ProfilePage from "@/pages/profile";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/signup";
+import AdminPage from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -56,6 +57,14 @@ function Router() {
         <ProtectedRoute>
           <Layout>
             <ProfilePage />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/admin">
+        <ProtectedRoute>
+          <Layout>
+            <AdminPage />
           </Layout>
         </ProtectedRoute>
       </Route>
