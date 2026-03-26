@@ -26,7 +26,6 @@ The entries below are grouped from the current repository history and phrased as
 ### Tanner Atkinson
 - `d094f3b` on 2026-03-23: functionality to save listings and send listings to chat; restructure of chat and collaboration board tables
 - `e530a85` on 2026-03-22: listings with live update using Zillow API
-- `73167a0` on 2026-03-19: board layout updates prioritizing tasks and adding document and note actions
 - `2eaf5b6` on 2026-03-16: improved accessibility and semantics for core pages
 
 ### Augusto Freire
@@ -43,9 +42,12 @@ The entries below are grouped from the current repository history and phrased as
 - `4305d2d` on 2026-03-16: added `DATABASE_URL` to SSH deployment workflow
 - `821965e` on 2026-03-11: GitHub deployment to EC2 instance
 
+### Ashlynn Burgess
+- `091f86f` on 2026-03-25: added vision board image upload and delete functionality
+- `73167a0` on 2026-03-19: board layout updates prioritizing tasks and adding document and note actions
+- `54b8164` on 2026-03-12: improved collaboration board and home page UX and fixed image issues
+
 ### Additional Repository Activity
-- `091f86f` on 2026-03-25 by `ansanger72`: added vision board image upload and delete functionality
-- `54b8164` on 2026-03-12 by `ansanger72`: improved collaboration board and home page UX and fixed image issues
 - `3ea5912` on 2026-03-14 by `etdurf`: added JWT auth with signup, login, logout, and protected routes
 
 ## Demo Credentials
