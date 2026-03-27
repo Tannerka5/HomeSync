@@ -16,7 +16,7 @@ router.get("/okr", async (_req, res) => {
         `SELECT COUNT(*)::int AS count FROM collab_item
          WHERE item_type = 'task'
            AND status = 'done'
-           AND updated_at >= date_trunc('month', CURRENT_TIMESTAMP)`
+           AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`
       ),
       pool.query<{ count: number }>(
         `SELECT COUNT(*)::int AS count FROM message
