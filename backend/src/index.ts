@@ -96,7 +96,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(frontendDist));
   
   // SPA fallback
-  app.get("*", (req, res, next) => {
+  app.get("(.*)", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
       return next();
     }
