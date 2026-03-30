@@ -6,7 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
-const uploadDir = path.join(process.cwd(), "uploads");
+
+// Find backend root (works in both src/ and dist/src/ if it's 1-3 levels deep)
+let backendRoot = currentDir;
+while (backendRoot !== path.dirname(backendRoot) && !fs.existsSync(path.join(backendRoot, "package.json"))) {
+  backendRoot = path.dirname(backendRoot);
+}
+const uploadDir = path.join(backendRoot, "uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
