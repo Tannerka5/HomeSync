@@ -14,6 +14,7 @@ import listingsRouter from "./routes/listings.js";
 import boardRouter from "./routes/board.js";
 import chatsRouter from "./routes/chats.js";
 import adminRouter from "./routes/admin.js";
+import uploadRouter from "./routes/upload.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -41,6 +42,9 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+
+// --- Serve static uploads ---
+app.use("/uploads", express.static(path.join(currentDir, "..", "uploads")));
 
 // --- CSRF Origin validation (production only, when ALLOWED_ORIGINS is set) ---
 if (process.env.ALLOWED_ORIGINS) {
@@ -76,6 +80,7 @@ app.use("/api/listings", requireAuth, listingsRouter);
 app.use("/api/board", requireAuth, boardRouter);
 app.use("/api/chats", requireAuth, chatsRouter);
 app.use("/api/admin", requireAuth, adminRouter);
+app.use("/api/upload", requireAuth, uploadRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({

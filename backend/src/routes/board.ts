@@ -37,7 +37,7 @@ router.get("/items", async (req, res) => {
       query += ` AND listing_id = $${idx++}`;
       params.push(listingId);
     }
-    if (itemType && ["task", "note", "document", "listing_candidate"].includes(itemType)) {
+    if (itemType && ["task", "note", "document", "listing_candidate", "vision_board"].includes(itemType)) {
       query += ` AND item_type = $${idx++}`;
       params.push(itemType);
     }

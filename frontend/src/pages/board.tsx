@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import {
   Plus,
-  MoreHorizontal,
   Calendar,
   FileText,
   CheckCircle2,
@@ -17,6 +16,7 @@ import {
   Bath,
   Maximize,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
@@ -129,25 +129,145 @@ export default function BoardPage() {
   const [listingDetailsLoading, setListingDetailsLoading] = useState(false);
   const visionFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  function handleVisionImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [isTaskOpen, setIsTaskOpen] = useState(false);
+
+  const [docTitle, setDocTitle] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docNotes, setDocNotes] = useState("");
+  const [isDocOpen, setIsDocOpen] = useState(false);
+
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [isNoteOpen, setIsNoteOpen] = useState(false);
+
+  const [isUploading, setIsUploading] = useState(false);
+
+  const uploadFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      return data.url;
+    } catch {
+      return null;
+    }
+  };
+
+  const createBoardItem = async (itemType: string, title: string, content: string, dueDate?: string) => {
+    try {
+      let formattedDate = dueDate;
+      if (formattedDate && formattedDate.length === 10) {
+        formattedDate = `${formattedDate}T00:00:00Z`;
+      }
+
+      const res = await fetch("/api/board/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ itemType, title: title || "Untitled", bodyText: content, dueDate: formattedDate }),
+      });
+      if (!res.ok) throw new Error("Failed to create item");
+      const item = await res.json();
+      if (itemType === "task") setTasks(p => [item, ...p]);
+      if (itemType === "document") setDocuments(p => [item, ...p]);
+      if (itemType === "note") setNotes(p => [item, ...p]);
+    } catch (err) {
+      setTaskMessage("Failed to create item");
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim()) return;
+    setIsUploading(true);
+    await createBoardItem("task", taskTitle, "", taskDueDate || undefined);
+    setTaskTitle(""); setTaskDueDate(""); setIsTaskOpen(false);
+    setIsUploading(false);
+  };
+
+  const handleCreateNote = async () => {
+    if (!noteTitle.trim()) return;
+    setIsUploading(true);
+    await createBoardItem("note", noteTitle, noteContent);
+    setNoteTitle(""); setNoteContent(""); setIsNoteOpen(false);
+    setIsUploading(false);
+  };
+
+  const handleCreateDocument = async () => {
+    if (!docTitle.trim() || !docFile) return;
+    setIsUploading(true);
+    const url = await uploadFile(docFile);
+    if (!url) {
+      setTaskMessage("File upload failed");
+      setIsUploading(false);
+      return;
+    }
+    const content = docNotes ? `${url}\n\nNotes:\n${docNotes}` : url;
+    await createBoardItem("document", docTitle, content);
+    setDocTitle(""); setDocFile(null); setDocNotes(""); setIsDocOpen(false);
+    setIsUploading(false);
+  };
+
+  async function handleVisionImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const imageUrl = URL.createObjectURL(file);
+    setIsUploading(true);
+    const fileUrl = await uploadFile(file);
+    if (!fileUrl) {
+      setTaskMessage("Vision image upload failed");
+      setIsUploading(false);
+      return;
+    }
 
-    const newVisionItem = {
-      id: `vision-${Date.now()}`,
-      image: imageUrl,
-      title: file.name.replace(/\.[^/.]+$/, ""),
-    };
+    try {
+      const titleStr = file.name.replace(/\.[^/.]+$/, "") || "Vision Image";
+      const res = await fetch("/api/board/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ 
+          itemType: "vision_board", 
+          title: titleStr, 
+          bodyText: fileUrl 
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create item");
+      const newBackendItem = await res.json();
+      
+      const newVisionItem = {
+        id: `vision-${newBackendItem.numericId}`,
+        image: fileUrl,
+        title: titleStr,
+      };
 
-    setVisionItems((prev) => [...prev, newVisionItem]);
-
+      setVisionItems((prev) => [...prev, newVisionItem]);
+    } catch {
+      setTaskMessage("Failed to save vision item");
+    } finally {
+      setIsUploading(false);
+    }
     event.target.value = "";
-
   }
 
-  function deleteVisionItem(itemId: string) {
+  async function deleteVisionItem(itemId: string) {
+    const numericIdMatch = itemId.match(/vision-(\d+)/);
+    if (numericIdMatch) {
+      const numericId = numericIdMatch[1];
+      try {
+        await fetch(`/api/board/items/${numericId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+      } catch { /* ignore */ }
+    }
     setVisionItems((prev) => prev.filter((item) => item.id !== itemId));
   }
   
@@ -185,6 +305,10 @@ export default function BoardPage() {
         setListingCandidates(
           data.filter((d) => d.type === "listing_candidate"),
         );
+        const visionData = data.filter((d) => d.type === "vision_board");
+        if (visionData.length > 0) {
+          setVisionItems(visionData.map(d => ({ id: `vision-${d.numericId}`, image: d.content, title: d.title })));
+        }
         setTaskMessage("");
       } catch {
         setTaskMessage("Could not reach backend. Start frontend and backend together with npm run dev.");
@@ -369,6 +493,50 @@ export default function BoardPage() {
     }
   }
 
+  // ---- Edit/Delete state ----
+  const [editingItem, setEditingItem] = useState<BoardItem | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editDate, setEditDate] = useState("");
+
+  const deleteItem = async (numericId: number, type: "task" | "note" | "document") => {
+    try {
+      await fetch(`/api/board/items/${numericId}`, { method: "DELETE", credentials: "include" });
+      if (type === "task") setTasks(p => p.filter(t => t.numericId !== numericId));
+      if (type === "note") setNotes(p => p.filter(n => n.numericId !== numericId));
+      if (type === "document") setDocuments(p => p.filter(d => d.numericId !== numericId));
+    } catch { /* ignore */ }
+  };
+
+  const openEdit = (item: BoardItem) => {
+    setEditingItem(item);
+    setEditTitle(item.title);
+    setEditContent(item.content);
+    // Pre-fill date: tasks store it in item.date (formatted), send empty so PATCH doesn't overwrite
+    setEditDate("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingItem || !editTitle.trim()) return;
+    try {
+      let dueDatePayload: string | undefined = undefined;
+      if (editingItem.type === "task" && editDate) {
+        dueDatePayload = `${editDate}T00:00:00Z`;
+      }
+      const res = await fetch(`/api/board/items/${editingItem.numericId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: editTitle, bodyText: editContent, ...(dueDatePayload ? { dueDate: dueDatePayload } : {}) }),
+      });
+      if (!res.ok) return;
+      const updated: BoardItem = await res.json();
+      if (editingItem.type === "task") setTasks(p => p.map(t => t.numericId === updated.numericId ? { ...t, ...updated } : t));
+      if (editingItem.type === "note") setNotes(p => p.map(n => n.numericId === updated.numericId ? { ...n, ...updated } : n));
+      setEditingItem(null);
+    } catch { /* ignore */ }
+  };
+
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
@@ -389,37 +557,6 @@ export default function BoardPage() {
           <p className="mt-1 max-w-2xl text-muted-foreground">
             Keep tasks, documents, and notes organized in one place while saving your inspiration below.
           </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="gap-2 rounded-full bg-primary shadow-lg shadow-primary/20 hover:bg-accent">
-                <CheckCircle2 className="h-4 w-4" />
-                Add Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Task</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="header-task-title">Task</Label>
-                  <Input id="header-task-title" placeholder="What needs to be done?" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="header-due-date">Due Date</Label>
-                  <Input id="header-due-date" type="date" />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button>Create Task</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </section>
 
@@ -447,7 +584,7 @@ export default function BoardPage() {
               </Badge>
             </div>
 
-            <Dialog>
+            <Dialog open={isTaskOpen} onOpenChange={setIsTaskOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
@@ -466,16 +603,19 @@ export default function BoardPage() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="column-task-title">Task</Label>
-                    <Input id="column-task-title" placeholder="What needs to be done?" />
+                    <Input id="column-task-title" placeholder="What needs to be done?" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleCreateTask(); }} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="column-due-date">Due Date</Label>
-                    <Input id="column-due-date" type="date" />
+                    <Input id="column-due-date" type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
                   </div>
                 </div>
 
                 <DialogFooter>
-                  <Button>Create Task</Button>
+                  <Button disabled={isUploading || !taskTitle.trim()} onClick={handleCreateTask}>
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Create Task
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -500,9 +640,9 @@ export default function BoardPage() {
                     )}
                   </button>
 
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex-1 space-y-1.5 min-w-0">
                     <p
-                      className={`text-sm font-medium leading-none ${
+                      className={`text-sm font-medium leading-none truncate ${
                         task.status === "Done"
                           ? "line-through text-muted-foreground"
                           : "text-foreground"
@@ -533,6 +673,25 @@ export default function BoardPage() {
                       ) : null}
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
+                      aria-label={`Edit ${task.title}`}
+                      onClick={() => openEdit(task)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete ${task.title}`}
+                      onClick={() => deleteItem(task.numericId, "task")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -554,7 +713,7 @@ export default function BoardPage() {
               </Badge>
             </div>
 
-            <Dialog>
+            <Dialog open={isDocOpen} onOpenChange={setIsDocOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
@@ -573,23 +732,28 @@ export default function BoardPage() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="document-title">Document Title</Label>
-                    <Input id="document-title" placeholder="Pre-Approval Letter.pdf" />
+                    <Input id="document-title" placeholder="Pre-Approval Letter.pdf" value={docTitle} onChange={e => setDocTitle(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="document-file">Upload File</Label>
-                    <Input id="document-file" type="file" />
+                    <Input id="document-file" type="file" onChange={e => setDocFile(e.target.files?.[0] || null)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="document-notes">Notes</Label>
                     <Textarea
                       id="document-notes"
                       placeholder="Optional document details..."
+                      value={docNotes}
+                      onChange={e => setDocNotes(e.target.value)}
                     />
                   </div>
                 </div>
 
                 <DialogFooter>
-                  <Button>Save Document</Button>
+                  <Button disabled={isUploading || !docTitle.trim() || !docFile} onClick={handleCreateDocument}>
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Save Document
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -610,19 +774,35 @@ export default function BoardPage() {
                     <p className="truncate text-sm font-bold transition-colors group-hover:text-primary">
                       {doc.title}
                     </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {doc.date || "No date"}
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                      {(() => {
+                        const notesMatch = doc.content.match(/\n\nNotes:\n([\s\S]*)/);
+                        return notesMatch ? notesMatch[1].trim() : (doc.date || "");
+                      })()}
                     </p>
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                    aria-label={`Open document ${doc.title}`}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                      aria-label={`Open document ${doc.title}`}
+                      onClick={() => {
+                        const urlMatch = doc.content.match(/^\/uploads\/[^\s\n]+/);
+                        if (urlMatch) window.open(urlMatch[0], "_blank");
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete ${doc.title}`}
+                      onClick={() => deleteItem(doc.numericId, "document")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -644,7 +824,7 @@ export default function BoardPage() {
               </Badge>
             </div>
 
-            <Dialog>
+            <Dialog open={isNoteOpen} onOpenChange={setIsNoteOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
@@ -663,16 +843,19 @@ export default function BoardPage() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="note-title">Title</Label>
-                    <Input id="note-title" placeholder="Note title" />
+                    <Input id="note-title" placeholder="Note title" value={noteTitle} onChange={e => setNoteTitle(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="note-content">Content</Label>
-                    <Textarea id="note-content" placeholder="Write your note here..." />
+                    <Textarea id="note-content" placeholder="Write your note here..." value={noteContent} onChange={e => setNoteContent(e.target.value)} />
                   </div>
                 </div>
 
                 <DialogFooter>
-                  <Button>Save Note</Button>
+                  <Button disabled={isUploading || !noteTitle.trim() || !noteContent.trim()} onClick={handleCreateNote}>
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Save Note
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -689,14 +872,24 @@ export default function BoardPage() {
                     {note.title}
                   </CardTitle>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 -mr-2 text-muted-foreground"
-                    aria-label="Note options"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-6 w-6 rounded-full text-muted-foreground hover:text-primary"
+                      aria-label={`Edit ${note.title}`}
+                      onClick={() => openEdit(note)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-6 w-6 -mr-2 rounded-full text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete ${note.title}`}
+                      onClick={() => deleteItem(note.numericId, "note")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </CardHeader>
 
                 <CardContent className="p-4 pt-1">
@@ -709,6 +902,37 @@ export default function BoardPage() {
           </div>
         </div>
       </section>
+
+      {/* Edit dialog (tasks & notes) */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => { if (!open) setEditingItem(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {editingItem?.type === "task" ? "Task" : "Note"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input id="edit-title" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+            </div>
+            {editingItem?.type === "task" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-date">Due Date</Label>
+                <Input id="edit-date" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+              </div>
+            )}
+            {editingItem?.type === "note" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-content">Content</Label>
+                <Textarea id="edit-content" value={editContent} onChange={e => setEditContent(e.target.value)} rows={5} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+            <Button disabled={!editTitle.trim()} onClick={saveEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Potential Homes */}
       <section className="mb-10">
@@ -1116,7 +1340,7 @@ export default function BoardPage() {
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         className={cn(
-                          "group relative aspect-[4/3] min-w-[220px] overflow-hidden rounded-2xl border border-border/50 shadow-sm transition-all duration-300 md:min-w-[260px]",
+                          "group relative min-w-[220px] max-w-[260px] h-[195px] md:min-w-[260px] overflow-hidden rounded-2xl border border-border/50 shadow-sm transition-all duration-300 shrink-0",
                           snapshot.isDragging
                             ? "z-50 scale-105 shadow-2xl ring-2 ring-primary"
                             : "hover:shadow-lg"

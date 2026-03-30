@@ -91,7 +91,7 @@ function isOnlyEmojis(text: string) {
 }
 
 function renderMessageTextWithLinks(text: string) {
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  const urlPattern = /((?:https?:\/\/[^\s]+)|(?:\/uploads\/[^\s]+))/g;
   const lines = text.split("\n");
 
   return (
@@ -101,17 +101,26 @@ function renderMessageTextWithLinks(text: string) {
         return (
           <span key={`line-${lineIndex}`}>
             {parts.map((part, partIndex) => {
-              const isUrl = /^https?:\/\/[^\s]+$/.test(part);
+              const isUrl = /^(?:https?:\/\/[^\s]+)|(?:\/uploads\/[^\s]+)$/.test(part);
               if (isUrl) {
+                const isImage = /\.(jpeg|jpg|gif|png|webp)$/i.test(part);
+                if (isImage) {
+                  return (
+                    <a key={`part-${lineIndex}-${partIndex}`} href={part} target="_blank" rel="noreferrer" className="block my-2">
+                       <img src={part} alt="attachment" loading="lazy" className="max-w-[240px] max-h-[240px] object-cover rounded-xl border border-border/30 hover:opacity-90 transition-opacity" />
+                    </a>
+                  );
+                }
                 return (
                   <a
                     key={`part-${lineIndex}-${partIndex}`}
                     href={part}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline underline-offset-2 hover:opacity-80 break-all"
+                    className="underline underline-offset-2 hover:opacity-80 break-all font-semibold"
+                    style={{ color: "inherit" }}
                   >
-                    {part}
+                    {(part.split("/").pop() ?? part).replace(/^\d+-\d+-/, "")}
                   </a>
                 );
               }
@@ -215,6 +224,8 @@ export default function ChatPage() {
   const selectedChatIdRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -472,6 +483,63 @@ export default function ChatPage() {
   useEffect(() => {
     if (selectedChatId) loadMessages(selectedChatId);
   }, [selectedChatId, loadMessages]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChatId) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const uploadData = await uploadRes.json();
+      
+      const res = await fetch(`/api/chats/${selectedChatId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ 
+          messageText: uploadData.url,
+        }),
+      });
+      if (res.ok) {
+        const msg = await res.json();
+        setMessages((prev) => [...prev, msg]);
+        
+        // Update sidebar
+        setChats(prev => {
+          const updatedChats = prev.map(c => {
+            if (c.id === selectedChatId) {
+              return { 
+                ...c, 
+                lastMessage: "Sent an attachment", 
+                time: new Date(msg.sentAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) 
+              };
+            }
+            return c;
+          });
+          const chatToMove = updatedChats.find(c => c.id === selectedChatId);
+          if (chatToMove) {
+            return [chatToMove, ...updatedChats.filter(c => c.id !== selectedChatId)];
+          }
+          return updatedChats;
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   async function sendMessage() {
     if (!messageInput.trim() || !selectedChatId) return;
@@ -859,9 +927,12 @@ export default function ChatPage() {
                  size="icon"
                  className="h-10 w-10 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
                  aria-label="Attach a file"
+                 onClick={() => fileInputRef.current?.click()}
+                 disabled={uploading}
                >
-                 <Paperclip className="h-5 w-5" />
+                 {uploading ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <Paperclip className="h-5 w-5" />}
                </Button>
+               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                <Button
                  variant="ghost"
                  size="icon"

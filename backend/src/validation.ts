@@ -62,7 +62,7 @@ export const updateListingSchema = createListingSchema.partial();
 
 export const createBoardItemSchema = z.object({
   listingId: z.number().int().positive().optional(),
-  itemType: z.enum(["task", "note", "document", "listing_candidate"]),
+  itemType: z.enum(["task", "note", "document", "listing_candidate", "vision_board"]),
   title: z.string().min(1).max(255),
   bodyText: z.string().max(5000).optional(),
   status: z.enum(["todo", "in_progress", "done"]).default("todo"),
