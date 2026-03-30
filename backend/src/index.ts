@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { verifyDatabaseConnection } from "./db.js";
@@ -18,7 +19,12 @@ import uploadRouter from "./routes/upload.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
-const repoRoot = path.resolve(currentDir, "..", "..");
+// Find backend root (works in both src/ and dist/src/ if it's 1-2 levels deep)
+let backendRoot = currentDir;
+while (backendRoot !== path.dirname(backendRoot) && !fs.existsSync(path.join(backendRoot, "package.json"))) {
+  backendRoot = path.dirname(backendRoot);
+}
+const repoRoot = path.resolve(backendRoot, "..");
 
 config();
 config({ path: path.join(repoRoot, ".env"), override: false });
@@ -44,7 +50,9 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 // --- Serve static uploads ---
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+const uploadDir = path.join(backendRoot, "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+app.use("/uploads", express.static(uploadDir));
 
 // --- CSRF Origin validation (production only, when ALLOWED_ORIGINS is set) ---
 if (process.env.ALLOWED_ORIGINS) {
@@ -92,7 +100,7 @@ app.get("/api/health", (_req, res) => {
 
 // --- Serve Frontend (Production) ---
 if (process.env.NODE_ENV === "production") {
-  const frontendDist = path.resolve(process.cwd(), "..", "frontend", "dist");
+  const frontendDist = path.resolve(repoRoot, "frontend", "dist");
   app.use(express.static(frontendDist));
   
   // SPA fallback
