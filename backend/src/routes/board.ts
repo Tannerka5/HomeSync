@@ -164,7 +164,6 @@ router.patch("/items/:id", async (req, res) => {
     return res.status(400).json({ message: "No fields to update." });
   }
 
-  setClauses.push(`updated_at = NOW()`);
   values.push(id);
 
   try {
@@ -207,8 +206,7 @@ router.patch("/items/:id/toggle", async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE collab_item
-       SET status = CASE WHEN status = 'done' THEN 'todo' ELSE 'done' END,
-           updated_at = NOW()
+       SET status = CASE WHEN status = 'done' THEN 'todo' ELSE 'done' END
        WHERE collab_item_id = $1 AND item_type = 'task'
        RETURNING collab_item_id, title, status, due_date`,
       [id],
