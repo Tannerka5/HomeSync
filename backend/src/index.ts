@@ -44,7 +44,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 // --- Serve static uploads ---
-app.use("/uploads", express.static(path.join(currentDir, "..", "uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // --- CSRF Origin validation (production only, when ALLOWED_ORIGINS is set) ---
 if (process.env.ALLOWED_ORIGINS) {
@@ -89,6 +89,20 @@ app.get("/api/health", (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// --- Serve Frontend (Production) ---
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = path.resolve(process.cwd(), "..", "frontend", "dist");
+  app.use(express.static(frontendDist));
+  
+  // SPA fallback
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // --- Centralized error handler ---
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
